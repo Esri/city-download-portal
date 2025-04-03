@@ -16,21 +16,25 @@ import { Polygon } from "@arcgis/core/geometry"
 import { CalciteButton } from "@esri/calcite-components-react"
 import { useRef } from "react"
 import { SketchTooltip } from "~/arcgis/components/sketch/sketch"
-import CreateExtentTool from "~/arcgis/components/sketch/tools/create-extent-tool"
 import { useSceneView } from "~/arcgis/components/views/scene-view/scene-view-context"
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store"
 import { useAccessorValue, useWatch } from "~/arcgis/reactive-hooks"
-import { useReferenceElementId } from "../walk-through-context"
+import CreateRectangleTool from "~/arcgis/components/sketch/tools/create-rectangle-tool"
+import { FillSymbol3DLayer, PolygonSymbol3D } from "@arcgis/core/symbols"
+
+const EmptyPolygon = new PolygonSymbol3D({
+  symbolLayers: [
+    new FillSymbol3DLayer({
+      material: {
+        color: [0, 0, 0, 0]
+      }
+    })
+  ]
+})
 
 export function CreateSelectionTool() {
   const view = useSceneView();
   const viewReady = useAccessorValue(() => view.ready);
-  const id = useReferenceElementId([
-    'not-started',
-    'placing-origin',
-    'placing-terminal',
-  ],
-    'top');
 
   const store = useSelectionState();
 
@@ -47,28 +51,62 @@ export function CreateSelectionTool() {
 
   return (
     <>
-      <CreateExtentTool
+      <CreateRectangleTool
         ref={toolRef}
-        onStart={() => {
+        onStart={async () => {
           store.editingState = 'creating'
           previousSelection.current = store.selection;
         }}
         onActive={(polygon) => {
-          if (polygon) store.selection = polygon
+          if (polygon) {
+            const extent = polygon.extent;
+
+            const extentPolygon = new Polygon({
+              rings: [
+                [
+                  [extent.xmin, extent.ymin],
+                  [extent.xmin, extent.ymax],
+                  [extent.xmax, extent.ymax],
+                  [extent.xmax, extent.ymin],
+                  [extent.xmin, extent.ymin],
+                ]
+              ],
+              spatialReference: extent.spatialReference
+            });
+
+            store.modelOrigin = polygon.getPoint(0, 0);
+
+            store.selection = extentPolygon;
+          }
         }}
         onComplete={(polygon) => {
           store.editingState = 'updating-selection'
-          store.selection = polygon;
+          const extent = polygon.extent;
+
+          const extentPolygon = new Polygon({
+            rings: [
+              [
+                [extent.xmin, extent.ymin],
+                [extent.xmin, extent.ymax],
+                [extent.xmax, extent.ymax],
+                [extent.xmax, extent.ymin],
+                [extent.xmin, extent.ymin],
+              ]
+            ],
+            spatialReference: extent.spatialReference
+          });
+
+          store.selection = extentPolygon;
         }}
         onCancel={() => {
           store.editingState = 'idle'
           store.selection = previousSelection.current;
         }}
+        createSymbol={EmptyPolygon}
       >
         {({ start, cancel, state }) => (
           <>
             <CalciteButton
-              id={id}
               scale="l"
               iconStart="rectangle-plus"
               disabled={!viewReady}
@@ -90,7 +128,7 @@ export function CreateSelectionTool() {
             ) : null}
           </>
         )}
-      </CreateExtentTool>
+      </CreateRectangleTool >
     </>
   )
 }

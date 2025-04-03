@@ -160,6 +160,7 @@ function Dimensions() {
   const store = useSelectionState();
   const positionOrigin = useAccessorValue(() => store.selectionOrigin);
   const terminal = useAccessorValue(() => store.selectionTerminal);
+  const isIdle = useAccessorValue(() => store.editingState === 'idle');
 
   const elevationQuery = useSelectionElevationInfo()
 
@@ -188,16 +189,20 @@ function Dimensions() {
 
   return (
     <DimensionsLayer fontSize={12}>
-      <LengthDimension
-        measureType="horizontal"
-        startPoint={widthEnd}
-        endPoint={origin}
-      />
-      <LengthDimension
-        measureType="horizontal"
-        startPoint={heightEnd}
-        endPoint={origin}
-      />
+      {isIdle ? (
+        <LengthDimension
+          measureType="horizontal"
+          startPoint={widthEnd}
+          endPoint={origin}
+        />
+      ) : null}
+      {isIdle ? (
+        <LengthDimension
+          measureType="horizontal"
+          startPoint={heightEnd}
+          endPoint={origin}
+        />
+      ) : null}
     </DimensionsLayer>
   )
 }

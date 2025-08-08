@@ -21,7 +21,7 @@ import {
 import useIsRoot from "~/hooks/useIsRoot";
 import ModelOrigin from "./model-origin";
 import SelectionInfo from "./selection-info/selection-info";
-import ExportSettings from "./export-settings";
+import ExportSettings from "./export-settings-with-stl";
 import { useEffect, useReducer } from "react";
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";

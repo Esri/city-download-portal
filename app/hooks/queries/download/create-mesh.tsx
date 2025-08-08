@@ -24,19 +24,149 @@ import { createOriginMarker, ExportColors } from "~/symbology/symbology";
 import MeshMaterial from "@arcgis/core/geometry/support/MeshMaterial.js";
 import type { MeshGraphic } from "./export-query";
 
-async function extractElevation(ground: Ground, extent: __esri.Extent) {
+async function extractElevation(ground: Ground, extent: __esri.Extent, features?: Map<__esri.SceneLayer, MeshGraphic[]>) {
   const mesh = await meshUtils.createFromElevation(ground, extent, {
     demResolution: "finest-contiguous"
   });
 
-  for (const component of mesh.components ?? []) {
+  // Calculate base elevation from features if available
+  let minElevation = mesh.extent.zmin ?? 0;
+  if (features && features.size > 0) {
+    const allFeatures = Array.from(features.values()).flat();
+    if (allFeatures.length > 0) {
+      minElevation = Math.min(
+        minElevation,
+        ...allFeatures.map(f => f.geometry.extent.zmin)
+      );
+    }
+  }
+
+  // Extrude the terrain mesh downward to create a solid
+  const thickness = 50; // meters - adjust as needed
+  const baseElevation = minElevation - thickness;
+  
+  const extrudedMesh = await extrudeTerrainMesh(mesh, baseElevation);
+
+  for (const component of extrudedMesh.components ?? []) {
     component.name = "elevation";
     component.material ??= new MeshMaterial({
       color: ExportColors.terrain()
     })
   }
 
-  return mesh;
+  return extrudedMesh;
+}
+
+async function extrudeTerrainMesh(mesh: Mesh, bottomElevation: number): Promise<Mesh> {
+  const originalVertices = mesh.vertexAttributes.position;
+  const originalFaces = mesh.components?.[0]?.faces;
+  
+  if (!originalVertices || !originalFaces || !mesh.components) {
+    return mesh; // Return original if no valid geometry
+  }
+
+  const vertexCount = originalVertices.length / 3;
+  
+  // Create new vertex array with double the vertices (top + bottom)
+  const newVertices = new Float64Array(originalVertices.length * 2);
+  
+  // Copy original vertices (top surface - preserve terrain detail)
+  newVertices.set(originalVertices, 0);
+  
+  // Create bottom vertices by copying X,Y and setting Z to flat bottom elevation
+  for (let i = 0; i < vertexCount; i++) {
+    const baseIndex = i * 3;
+    newVertices[originalVertices.length + baseIndex] = originalVertices[baseIndex];         // X
+    newVertices[originalVertices.length + baseIndex + 1] = originalVertices[baseIndex + 1]; // Y
+    newVertices[originalVertices.length + baseIndex + 2] = bottomElevation;                 // Z (flat)
+  }
+
+  // Find boundary edges for side walls
+  const boundaryEdges = findBoundaryEdges(originalFaces, vertexCount);
+  
+  // Calculate face counts
+  const originalFaceCount = originalFaces.length;
+  const sideFaceCount = boundaryEdges.length * 6; // 2 triangles per boundary edge
+  const bottomFaceCount = originalFaceCount; // Bottom face
+  
+  const newFaces = new Uint32Array(originalFaceCount + sideFaceCount + bottomFaceCount);
+  let faceIndex = 0;
+  
+  // Copy original top faces (preserve terrain surface)
+  newFaces.set(originalFaces, faceIndex);
+  faceIndex += originalFaceCount;
+  
+  // Create side faces connecting top perimeter to bottom perimeter
+  for (const [v1, v2] of boundaryEdges) {
+    const topV1 = v1;
+    const topV2 = v2;
+    const bottomV1 = v1 + vertexCount;
+    const bottomV2 = v2 + vertexCount;
+    
+    // Triangle 1
+    newFaces[faceIndex++] = topV1;
+    newFaces[faceIndex++] = bottomV1;
+    newFaces[faceIndex++] = topV2;
+    
+    // Triangle 2
+    newFaces[faceIndex++] = topV2;
+    newFaces[faceIndex++] = bottomV1;
+    newFaces[faceIndex++] = bottomV2;
+  }
+  
+  // Create flat bottom faces (reverse winding order to face downward)
+  for (let i = 0; i < originalFaceCount; i += 3) {
+    newFaces[faceIndex + i] = originalFaces[i + 2] + vertexCount;     // Reverse winding
+    newFaces[faceIndex + i + 1] = originalFaces[i + 1] + vertexCount;
+    newFaces[faceIndex + i + 2] = originalFaces[i] + vertexCount;
+  }
+
+  // Create the extruded solid mesh
+  const extrudedMesh = new Mesh({
+    vertexAttributes: {
+      position: newVertices
+    } as any,
+    components: [{
+      faces: newFaces
+    }],
+    spatialReference: mesh.spatialReference
+  });
+
+  return extrudedMesh;
+}
+
+function findBoundaryEdges(faces: Uint32Array, vertexCount: number): [number, number][] {
+  // Create edge map to find boundary edges (edges that appear only once)
+  const edgeMap = new Map<string, number>();
+  
+  // Process all faces to count edge occurrences
+  for (let i = 0; i < faces.length; i += 3) {
+    const v1 = faces[i];
+    const v2 = faces[i + 1];
+    const v3 = faces[i + 2];
+    
+    // Add all three edges of the triangle
+    addEdge(edgeMap, v1, v2);
+    addEdge(edgeMap, v2, v3);
+    addEdge(edgeMap, v3, v1);
+  }
+  
+  // Find edges that appear only once (boundary edges)
+  const boundaryEdges: [number, number][] = [];
+  for (const [edgeKey, count] of edgeMap.entries()) {
+    if (count === 1) {
+      const [v1, v2] = edgeKey.split('-').map(Number);
+      boundaryEdges.push([v1, v2]);
+    }
+  }
+  
+  return boundaryEdges;
+}
+
+function addEdge(edgeMap: Map<string, number>, v1: number, v2: number): void {
+  // Create consistent edge key (smaller vertex first)
+  const edgeKey = v1 < v2 ? `${v1}-${v2}` : `${v2}-${v1}`;
+  edgeMap.set(edgeKey, (edgeMap.get(edgeKey) || 0) + 1);
 }
 
 async function createLayerMeshes({
@@ -161,7 +291,7 @@ export async function createMesh({
     projectedOrigin = projection.project(origin, sr) as Point;
   }
 
-  const elevation = await extractElevation(ground, projectedExtent);
+  const elevation = await extractElevation(ground, projectedExtent, features);
 
   const slice = await mergeSliceMeshes({
     elevation,

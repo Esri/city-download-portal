@@ -49,6 +49,8 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
   });
   const [filename, setFilename] = useState("")
   const [includeOriginMarker, setIncludeOriginMarker] = useState(true);
+  const [extrudeBase, setExtrudeBase] = useState(true);
+  const [extrusionDepth, setExtrusionDepth] = useState("50");
 
   const store = useSelectionState();
   const editingState = useAccessorValue(() => store.editingState);
@@ -64,6 +66,8 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
 
   const downloadQuery = useExportSizeQuery({
     includeOriginMarker,
+    extrudeBase,
+    extrusionDepth: extrusionDepth === '' ? 50 : (parseFloat(extrusionDepth) || 50),
     enabled: editingState === 'idle' && !hasTooManyFeatures
   });
 
@@ -144,6 +148,31 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
           </CalciteLabel>
         </li>
         <li>
+          <CalciteLabel scale="s" layout="inline">
+            <CalciteCheckbox checked={extrudeBase} onCalciteCheckboxChange={() => setExtrudeBase(!extrudeBase)} />
+            Extrude terrain base downward
+          </CalciteLabel>
+        </li>
+        {extrudeBase && (
+          <li>
+            <CalciteLabel scale="s">
+              <p className="font-medium">Extrusion depth (meters)</p>
+              <input
+                type="number"
+                value={extrusionDepth}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setExtrusionDepth(value);
+                }}
+                min="0"
+                step="10"
+                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                style={{ height: '32px' }}
+              />
+            </CalciteLabel>
+          </li>
+        )}
+        <li>
           <CalciteLabel scale="s">
             <p className="font-medium">File size</p>
             <p className={!canDownload ? "opacity-50" : ""}>{fileSizeString}</p>
@@ -158,14 +187,18 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
         loading={mutation.isPending}
         onClick={() => {
           if (canDownload) {
-            mutation.mutateAsync({
+            const extrusionDepthValue = extrusionDepth === '' ? 50 : (parseFloat(extrusionDepth) || 50);
+            const exportParams = {
               scene,
               extent: selection!.extent!,
               features: featureQuery.data!,
               origin: modelOrigin!,
               includeOriginMarker,
+              extrudeBase,
+              extrusionDepth: extrusionDepthValue,
               filename,
-            })
+            };
+            mutation.mutateAsync(exportParams)
               .then(blob => {
                 const name = filename || title || 'model';
                 downloadFile(name, blob);

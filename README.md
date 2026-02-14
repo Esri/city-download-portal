@@ -4,7 +4,7 @@ The city download portal lets you extract 3D data from a webscene, and download 
 
 Built with the Arcgis Maps SDK for Javascript, React, Remix, and Tailwind CSS.
 
-[View it live](https://esri.github.io/city-download-portal/)
+[View it live](https://paulgibbs3rd.github.io/city-download-portal/)
 
 ![The image shows a 3D map visualization of St. Gallen, Switzerland, with buildings and trees rendered in high detail. Blue-highlighted buildings are marked with length indicators ("752.33 ft" and "772.04 ft") within a selected rectangular area outlined in red. A side panel on the right displays information about the model's origin coordinates, spatial reference, and elevation, along with export options. The interface includes controls for zooming, searching locations, and selecting areas, with export options for the 3D model file in .glb format.](https://github.com/user-attachments/assets/15cb1550-4854-4853-8a66-6a995142efcd)
 

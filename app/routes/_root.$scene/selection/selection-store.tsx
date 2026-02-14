@@ -76,16 +76,15 @@ class SelectionStore extends Accessor {
   @property()
   get selectionOrigin(): Point | null {
     const selection = this.selection;
-    if (selection != null) {
-      const [[[x, y]]] = selection.rings;
-
+    if (selection != null && selection.rings?.length > 0 && selection.rings[0].length > 0) {
+      const [x, y] = selection.rings[0][0];
       return new Point({
         x,
         y,
         spatialReference: selection.spatialReference
-      })
+      });
     } else {
-      return null
+      return null;
     }
   }
 
@@ -107,13 +106,17 @@ class SelectionStore extends Accessor {
   @property()
   get selectionTerminal(): Point | null {
     const selection = this.selection;
-    if (selection != null) {
-      const [[_oo, _ot, [x, y]]] = selection.rings;
+    if (selection != null && selection.rings?.length > 0 && selection.rings[0].length > 0) {
+      // Use the last point in the first ring (not the closing point, which is usually a repeat of the first)
+      const ring = selection.rings[0];
+      // If ring is closed, last point equals first; use second-to-last for terminal
+      const idx = (ring.length > 2 && ring[ring.length - 1][0] === ring[0][0] && ring[ring.length - 1][1] === ring[0][1]) ? ring.length - 2 : ring.length - 1;
+      const [x, y] = ring[idx];
       return new Point({
         x,
         y,
         spatialReference: selection.spatialReference
-      })
+      });
     } else {
       return null;
     }

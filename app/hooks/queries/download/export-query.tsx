@@ -13,7 +13,8 @@
  * limitations under the License.
  */
 import { createMesh } from "./create-mesh";
-import { Extent, Mesh, Point } from "@arcgis/core/geometry";
+import { Extent, Point } from "@arcgis/core/geometry";
+import Mesh from "@arcgis/core/geometry/Mesh";
 import { useScene } from "~/arcgis/components/maps/web-scene/scene-context";
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store";
 import { MAX_FEATURES, useSelectedFeaturesFromLayers } from "../feature-query";
@@ -25,7 +26,17 @@ import { ToastableError, useToast } from "~/components/toast";
 import WebScene from "@arcgis/core/WebScene";
 import type Graphic from "@arcgis/core/Graphic";
 
-export function useExportSizeQuery({ enabled = false, includeOriginMarker = true }: { enabled?: boolean, includeOriginMarker?: boolean }) {
+export function useExportSizeQuery({ 
+  enabled = false, 
+  includeOriginMarker = true,
+  extrudeBase = true,
+  extrusionDepth = 50
+}: { 
+  enabled?: boolean, 
+  includeOriginMarker?: boolean,
+  extrudeBase?: boolean,
+  extrusionDepth?: number
+}) {
   const scene = useScene()
   const store = useSelectionState();
   const selection = useAccessorValue(() => store.selection);
@@ -58,7 +69,9 @@ export function useExportSizeQuery({ enabled = false, includeOriginMarker = true
     features.map(f => f.getObjectId()),
     selection?.extent?.toJSON(),
     modelOrigin?.toJSON(),
-    includeOriginMarker
+    includeOriginMarker,
+    extrudeBase,
+    extrusionDepth
   ]);
 
   const query = useQuery({
@@ -71,11 +84,13 @@ export function useExportSizeQuery({ enabled = false, includeOriginMarker = true
       try {
         const blob = await createModelBlob({
           scene,
-          extent: selection!.extent,
+          extent: selection!.extent!,
           features: featureQuery.data!,
           signal,
           origin: modelOrigin!,
           includeOriginMarker,
+          extrudeBase,
+          extrusionDepth,
           filename: "unknown",
         })
 
@@ -119,6 +134,8 @@ export function useDownloadExportMutation() {
 
 async function createModelBlob(args: {
   includeOriginMarker?: boolean,
+  extrudeBase?: boolean,
+  extrusionDepth?: number,
   filename: string,
   scene: WebScene,
   extent: Extent,
@@ -128,12 +145,16 @@ async function createModelBlob(args: {
 }) {
   const {
     includeOriginMarker = false,
+    extrudeBase = true,
     scene,
     extent,
     features,
     origin,
     signal
   } = args;
+  
+  // Convert extrusionDepth string to number, with fallback to 50
+  const extrusionDepth = args.extrusionDepth ? Number(args.extrusionDepth) : 50;
 
   const featureCount = Array.from(features.values()).flat().length;
   if (featureCount > MAX_FEATURES) {
@@ -153,6 +174,8 @@ async function createModelBlob(args: {
       features,
       origin,
       includeOriginMarker,
+      extrudeBase,
+      extrusionDepth,
       signal,
     });
   } catch (error) {
@@ -165,12 +188,12 @@ async function createModelBlob(args: {
     })
   }
 
-  const file = await mesh.toBinaryGLTF();
+  const file = await mesh!.toBinaryGLTF();
   const blob = new Blob([file], { type: 'model/gltf-binary' });
   return blob
 }
 
 export type MeshGraphic = Omit<Graphic, 'geometry'> & { geometry: Mesh }
 export function filterMeshGraphicsFromFeatureSet(featureSet: __esri.FeatureSet): MeshGraphic[] {
-  return featureSet.features.filter(feature => feature.geometry.type === "mesh") as any as MeshGraphic[]
+  return featureSet.features.filter(feature => feature.geometry?.type === "mesh") as any as MeshGraphic[]
 }

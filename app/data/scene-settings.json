@@ -2,6 +2,7 @@
   "portal": "https://www.arcgis.com/",
   "scenes": [
     { "id": "50bde63b675844679cb627864216e9db" },
-    { "id": "8208c8f77e5a4a1383a749aa25189360" }
+    { "id": "8208c8f77e5a4a1383a749aa25189360" },
+    { "id": "c444ed49d609400a8fe68866c35a0bd4" }
   ]
 }

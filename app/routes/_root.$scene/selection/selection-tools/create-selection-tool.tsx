@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { Polygon } from "@arcgis/core/geometry"
+import Polygon from "@arcgis/core/geometry/Polygon"
 import '@esri/calcite-components/dist/components/calcite-button';
 import { CalciteButton } from "@esri/calcite-components-react"
 import { useRef } from "react"
@@ -21,7 +21,8 @@ import { useSceneView } from "~/arcgis/components/views/scene-view/scene-view-co
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store"
 import { useAccessorValue, useWatch } from "~/arcgis/reactive-hooks"
 import CreatePolygonTool from "~/arcgis/components/sketch/tools/create-polygon-tool"
-import { FillSymbol3DLayer, PolygonSymbol3D } from "@arcgis/core/symbols"
+import FillSymbol3DLayer from "@arcgis/core/symbols/FillSymbol3DLayer"
+import PolygonSymbol3D from "@arcgis/core/symbols/PolygonSymbol3D"
 
 const EmptyPolygon = new PolygonSymbol3D({
   symbolLayers: [

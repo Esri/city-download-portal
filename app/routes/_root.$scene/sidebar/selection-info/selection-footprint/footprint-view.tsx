@@ -17,14 +17,13 @@ import '@esri/calcite-components/dist/components/calcite-scrim';
 import { CalciteScrim } from "@esri/calcite-components-react";
 import GraphicsLayer from "~/arcgis/components/graphics-layer";
 import Graphic from "~/arcgis/components/graphic";
-import {
-  SimpleMarkerSymbol
-} from "@arcgis/core/symbols";
+import SimpleMarkerSymbol from "@arcgis/core/symbols/SimpleMarkerSymbol";
 import { useSceneView } from "~/arcgis/components/views/scene-view/scene-view-context";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store";
 import CoreMapView from "@arcgis/core/views/MapView";
-import { Point, Polygon } from "@arcgis/core/geometry";
+import Point from "@arcgis/core/geometry/Point";
+import Polygon from "@arcgis/core/geometry/Polygon";
 import { SymbologyColors } from "~/symbology/symbology";
 import { useMutation } from "@tanstack/react-query";
 import { FootprintGraphic } from "./footprint-graphic";
@@ -70,6 +69,8 @@ function useGoToSelection() {
 
       const area = Math.abs(areaOperator.execute(polygon));
       const buffered = bufferOperator.execute(polygon!, Math.sqrt(area) * 0.5);
+      if (buffered == null) return;
+
       return view.goTo({ target: buffered }, { signal, animate: true });
     }
   });

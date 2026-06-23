@@ -20,10 +20,11 @@ import useInstance from "~/hooks/useInstance";
 import Graphic from "@arcgis/core/Graphic";
 import useProvideRef from "~/hooks/useProvideRef";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
+import type { UpdateEvent } from "@arcgis/core/widgets/Sketch/types";
 
 interface ReshapeToolProps {
   onStart?: (graphics: Graphic[]) => void;
-  onActive?: (graphics: Graphic[], event: __esri.SketchViewModelUpdateEvent) => void;
+  onActive?: (graphics: Graphic[], event: UpdateEvent) => void;
   onComplete?: (graphics: Graphic[]) => void;
   onCancel?: (graphics: Graphic[]) => void;
   onDelete?: (graphics: Graphic[]) => void;
@@ -56,8 +57,9 @@ export const ReshapeTool = forwardRef<ReshapeToolManager, ReshapeToolProps>(func
       switch (event.state) {
         case 'start': return onStart?.(event.graphics)
         case 'active': return onActive?.(event.graphics, event)
-        case 'complete': return onComplete?.(event.graphics)
-        case 'cancel': return onCancel?.(event.graphics)
+        case 'complete':
+          if (event.aborted) return onCancel?.(event.graphics)
+          return onComplete?.(event.graphics)
       }
     })
 

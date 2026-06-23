@@ -15,13 +15,22 @@
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import { useSceneView } from "~/arcgis/components/views/scene-view/scene-view-context";
-import { Extent, Multipoint, Point } from "@arcgis/core/geometry";
+import Extent from "@arcgis/core/geometry/Extent";
+import Multipoint from "@arcgis/core/geometry/Multipoint";
+import Point from "@arcgis/core/geometry/Point";
 import { useQuery } from '@tanstack/react-query';
 import { useSceneLayerViews } from "../useSceneLayers";
 
 export function useSelectionVolumeExtent() {
   const view = useSceneView();
-  const ground = useAccessorValue(() => view.groundView.elevationSampler)!;
+  const ground = useAccessorValue(() => {
+    try {
+      return view.ready ? (view.groundView?.elevationSampler ?? null) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const store = useSelectionState();
   const selection = useAccessorValue(() => store.selection) ?? null
 
@@ -37,7 +46,7 @@ export function useSelectionVolumeExtent() {
         query.geometry = selection!.extent;
 
         const results = await lv.queryExtent(query, { signal });
-        if (results.count > 0) {
+        if (results.count > 0 && results.extent != null) {
           extent ??= results.extent;
           extent!.union(results.extent);
         }
@@ -54,7 +63,7 @@ export function useSelectionVolumeExtent() {
 export function useSelectionElevationInfo() {
   const view = useSceneView();
 
-  const ground = useAccessorValue(() => view.map.ground)!;
+  const ground = useAccessorValue(() => view.map?.ground ?? null);
   const store = useSelectionState();
   const selection = useAccessorValue(() => store.selection) ?? null
 
@@ -66,7 +75,7 @@ export function useSelectionElevationInfo() {
         spatialReference: selection!.spatialReference
       })
 
-      const result = await ground.queryElevation(multipoint, { signal });
+      const result = await ground!.queryElevation(multipoint, { signal });
 
       const elevationInfo = result.geometry as Multipoint;
       const selectionPoints = {
@@ -90,14 +99,14 @@ export function useSelectionElevationInfo() {
 
 export function usePreciseOriginElevationInfo() {
   const view = useSceneView();
-  const ground = useAccessorValue(() => view.map.ground)!;
+  const ground = useAccessorValue(() => view.map?.ground ?? null);
   const store = useSelectionState();
   const origin = useAccessorValue(() => store.origin);
 
   return useQuery({
     queryKey: ['origin', 'elevation', ground?.toJSON(), origin?.toJSON()],
     queryFn: async ({ signal }) => {
-      const result = await ground.queryElevation(origin!, { signal });
+      const result = await ground!.queryElevation(origin!, { signal });
       const elevationInfo = result.geometry as Point;
 
       return elevationInfo;

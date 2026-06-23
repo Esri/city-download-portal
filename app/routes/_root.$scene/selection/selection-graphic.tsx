@@ -13,9 +13,11 @@
  * limitations under the License.
  */
 import { memo, useDeferredValue, useMemo } from "react";
-import { Polygon } from "@arcgis/core/geometry";
+import Polygon from "@arcgis/core/geometry/Polygon";
 import Graphic from "~/arcgis/components/graphic";
-import { ExtrudeSymbol3DLayer, FillSymbol3DLayer, PolygonSymbol3D } from "@arcgis/core/symbols";
+import ExtrudeSymbol3DLayer from "@arcgis/core/symbols/ExtrudeSymbol3DLayer";
+import FillSymbol3DLayer from "@arcgis/core/symbols/FillSymbol3DLayer";
+import PolygonSymbol3D from "@arcgis/core/symbols/PolygonSymbol3D";
 import GraphicsLayer from "~/arcgis/components/graphics-layer";
 import { createOriginSymbol, SymbologyColors } from "~/symbology/symbology";
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store";

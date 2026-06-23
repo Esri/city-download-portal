@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { Point } from "@arcgis/core/geometry";
+import Point from "@arcgis/core/geometry/Point";
 import '@esri/calcite-components/dist/components/calcite-dropdown-group';
 import '@esri/calcite-components/dist/components/calcite-dropdown-item';
 import '@esri/calcite-components/dist/components/calcite-split-button';

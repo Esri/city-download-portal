@@ -17,7 +17,7 @@ import { PropsWithChildren, createContext, useContext, useEffect, useState } fro
 import { useScene } from './maps/web-scene/scene-context';
 import { useMap } from './maps/map/map-context';
 
-type GraphicsLayerElevationInfo = Exclude<CoreGraphicsLayer['elevationInfo'], nullish>;
+type GraphicsLayerElevationInfo = Exclude<CoreGraphicsLayer['elevationInfo'], (null | undefined)>;
 
 const GraphicsLayerContext = createContext<CoreGraphicsLayer>(null!);
 

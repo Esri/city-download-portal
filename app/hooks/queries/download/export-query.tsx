@@ -13,7 +13,9 @@
  * limitations under the License.
  */
 import { createMesh } from "./create-mesh";
-import { Extent, Mesh, Point } from "@arcgis/core/geometry";
+import Extent from "@arcgis/core/geometry/Extent";
+import Mesh from "@arcgis/core/geometry/Mesh";
+import Point from "@arcgis/core/geometry/Point";
 import { useScene } from "~/arcgis/components/maps/web-scene/scene-context";
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store";
 import { MAX_FEATURES, useSelectedFeaturesFromLayers } from "../feature-query";
@@ -24,6 +26,8 @@ import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import { ToastableError, useToast } from "~/components/toast";
 import WebScene from "@arcgis/core/WebScene";
 import type Graphic from "@arcgis/core/Graphic";
+import type FeatureSet from "@arcgis/core/rest/support/FeatureSet";
+import type SceneLayer from "@arcgis/core/layers/SceneLayer";
 
 export function useExportSizeQuery({ enabled = false, includeOriginMarker = true }: { enabled?: boolean, includeOriginMarker?: boolean }) {
   const scene = useScene()
@@ -48,7 +52,7 @@ export function useExportSizeQuery({ enabled = false, includeOriginMarker = true
     enabled &&
     !isDownloading &&
     scene != null &&
-    selection != null &&
+    selection?.extent != null &&
     featureQueryError == null &&
     modelOrigin != null;
 
@@ -71,7 +75,7 @@ export function useExportSizeQuery({ enabled = false, includeOriginMarker = true
       try {
         const blob = await createModelBlob({
           scene,
-          extent: selection!.extent,
+          extent: selection!.extent!,
           features: featureQuery.data!,
           signal,
           origin: modelOrigin!,
@@ -122,7 +126,7 @@ async function createModelBlob(args: {
   filename: string,
   scene: WebScene,
   extent: Extent,
-  features: Map<__esri.SceneLayer, MeshGraphic[]>
+  features: Map<SceneLayer, MeshGraphic[]>
   origin: Point,
   signal?: AbortSignal
 }) {
@@ -165,12 +169,12 @@ async function createModelBlob(args: {
     })
   }
 
-  const file = await mesh.toBinaryGLTF();
+  const file = await mesh!.toBinaryGLTF();
   const blob = new Blob([file], { type: 'model/gltf-binary' });
   return blob
 }
 
 export type MeshGraphic = Omit<Graphic, 'geometry'> & { geometry: Mesh }
-export function filterMeshGraphicsFromFeatureSet(featureSet: __esri.FeatureSet): MeshGraphic[] {
-  return featureSet.features.filter(feature => feature.geometry.type === "mesh") as any as MeshGraphic[]
+export function filterMeshGraphicsFromFeatureSet(featureSet: FeatureSet): MeshGraphic[] {
+  return featureSet.features.filter(feature => feature.geometry?.type === "mesh") as any as MeshGraphic[]
 }

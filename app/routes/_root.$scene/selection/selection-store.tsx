@@ -17,7 +17,8 @@ import {
   property,
 } from "@arcgis/core/core/accessorSupport/decorators";
 import Accessor from "@arcgis/core/core/Accessor";
-import { Point, Polygon } from "@arcgis/core/geometry";
+import Point from "@arcgis/core/geometry/Point";
+import Polygon from "@arcgis/core/geometry/Polygon";
 import { PropsWithChildren, createContext, useContext } from "react";
 import useInstance from "~/hooks/useInstance";
 import Graphic from "@arcgis/core/Graphic";

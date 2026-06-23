@@ -17,14 +17,17 @@ import MeshLocalVertexSpace from "@arcgis/core/geometry/support/MeshLocalVertexS
 import MeshGeoreferencedVertexSpace from "@arcgis/core/geometry/support/MeshGeoreferencedVertexSpace";
 import * as meshUtils from "@arcgis/core/geometry/support/meshUtils";
 import type Ground from '@arcgis/core/Ground';
-import { type Extent, Point, type SpatialReference } from "@arcgis/core/geometry";
+import Point from "@arcgis/core/geometry/Point";
+import type Extent from "@arcgis/core/geometry/Extent";
+import type SpatialReference from "@arcgis/core/geometry/SpatialReference";
 import type WebScene from "@arcgis/core/WebScene";
-import * as projection from "@arcgis/core/geometry/projection";
+import * as projectOperator from "@arcgis/core/geometry/operators/projectOperator.js";
 import { createOriginMarker, ExportColors } from "~/symbology/symbology";
 import MeshMaterial from "@arcgis/core/geometry/support/MeshMaterial.js";
 import type { MeshGraphic } from "./export-query";
+import type SceneLayer from "@arcgis/core/layers/SceneLayer";
 
-async function extractElevation(ground: Ground, extent: __esri.Extent) {
+async function extractElevation(ground: Ground, extent: Extent) {
   const mesh = await meshUtils.createFromElevation(ground, extent, {
     demResolution: "finest-contiguous"
   });
@@ -45,7 +48,7 @@ async function createLayerMeshes({
   vertexSpace,
   signal,
 }: {
-  layer: __esri.SceneLayer,
+  layer: SceneLayer,
   features: MeshGraphic[],
   vertexSpace: MeshLocalVertexSpace | MeshGeoreferencedVertexSpace,
   signal?: AbortSignal
@@ -57,7 +60,7 @@ async function createLayerMeshes({
       await mesh.load();
 
       const objectId = feature.getObjectId();
-      for (const component of mesh.components) {
+      for (const component of mesh.components ?? []) {
         component.name = `${layer.title}-${objectId}`;
         // if the feature already has a material, we use that instead
         component.material ??= new MeshMaterial({
@@ -81,7 +84,7 @@ async function mergeSliceMeshes(
     signal,
   }: {
     elevation: Mesh,
-    features: Map<__esri.SceneLayer, MeshGraphic[]>
+    features: Map<SceneLayer, MeshGraphic[]>
     origin: Point,
     includeOriginMarker?: boolean,
     spatialReference: SpatialReference;
@@ -115,9 +118,15 @@ async function mergeSliceMeshes(
 
   if (includeOriginMarker) {
     const features = Array.from(featureMap.values()).flat();
-    const zmax = features.reduce((max, { geometry: next }) => next.extent.zmax > max ? next.extent.zmax : max, elevation.extent.zmax ?? -Infinity);
-    const zmin = features.reduce((min, { geometry: next }) => min > next.extent.zmin ? next.extent.zmin : min, elevation.extent.zmin ?? Infinity);
-    const height = zmax - zmin;
+    const zmax = features.reduce((max, { geometry: next }) => {
+      const nextZMax = next.extent?.zmax ?? max;
+      return nextZMax > max ? nextZMax : max;
+    }, elevation.extent.zmax ?? -Infinity);
+    const zmin = features.reduce((min, { geometry: next }) => {
+      const nextZMin = next.extent?.zmin ?? min;
+      return min > nextZMin ? nextZMin : min;
+    }, elevation.extent.zmin ?? Infinity);
+    const height = Number.isFinite(zmax) && Number.isFinite(zmin) ? zmax - zmin : 0;
 
     const originMesh = await createOriginMarker(origin, height);
     promises.push(meshUtils.convertVertexSpace(originMesh, vertexSpace, { signal }))
@@ -140,7 +149,7 @@ export async function createMesh({
 }: {
   scene: WebScene,
   extent: Extent,
-  features: Map<__esri.SceneLayer, MeshGraphic[]>
+  features: Map<SceneLayer, MeshGraphic[]>
   signal?: AbortSignal,
   origin: Point,
   includeOriginMarker?: boolean
@@ -151,14 +160,14 @@ export async function createMesh({
 
   let projectedExtent = extent;
   if (extent.spatialReference.wkid !== sr.wkid) {
-    await projection.load();
-    projectedExtent = projection.project(extent, sr) as Extent;
+    await projectOperator.load();
+    projectedExtent = projectOperator.execute(extent, sr) as Extent;
   }
 
   let projectedOrigin = origin;
   if (origin.spatialReference.wkid !== sr.wkid) {
-    await projection.load();
-    projectedOrigin = projection.project(origin, sr) as Point;
+    await projectOperator.load();
+    projectedOrigin = projectOperator.execute(origin, sr) as Point;
   }
 
   const elevation = await extractElevation(ground, projectedExtent);

@@ -15,15 +15,16 @@
 import Accessor from "@arcgis/core/core/Accessor";
 import { subclass, property } from "@arcgis/core/core/accessorSupport/decorators";
 import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
-import Evented from "@arcgis/core/core/Evented";
 import { SketchToolManager } from "./create-tool";
+import type { DeleteEvent, UpdateEvent } from "@arcgis/core/widgets/Sketch/types";
+import type { ResourceHandle } from "@arcgis/core/core/Handles";
 
 export type ShapeEvent = "start" | "active" | "complete" | "cancel" | "delete"
 
 @subclass()
-export class UpdateTool extends Accessor implements Evented {
+export class UpdateTool extends Accessor {
   readonly id = crypto.randomUUID();
-  #listeners = new Map<ShapeEvent, Set<(event: __esri.SketchViewModelUpdateEvent | __esri.SketchDeleteEvent) => void>>();
+  #listeners = new Map<ShapeEvent, Set<(event: UpdateEvent | DeleteEvent) => void>>();
 
   protected readonly type!: "move" | "transform" | "reshape";
   protected readonly overwrittenEvents: ShapeEvent[] = []
@@ -67,7 +68,7 @@ export class UpdateTool extends Accessor implements Evented {
     ])
   }
 
-  emit(type: ShapeEvent, event: __esri.SketchViewModelUpdateEvent | __esri.SketchDeleteEvent): boolean {
+  emit(type: ShapeEvent, event: UpdateEvent | DeleteEvent): boolean {
     if (!this.hasEventListener(type)) return false;
     for (const listener of this.#listeners.get(type) ?? []) {
       listener(event);
@@ -80,7 +81,7 @@ export class UpdateTool extends Accessor implements Evented {
     return this.#listeners.has(type);
   }
 
-  on(type: ShapeEvent | ShapeEvent[], listener: (event: __esri.SketchViewModelUpdateEvent | __esri.SketchDeleteEvent) => void): IHandle {
+  on(type: ShapeEvent | ShapeEvent[], listener: (event: UpdateEvent | DeleteEvent) => void): ResourceHandle {
     if (Array.isArray(type)) {
       const handles = type.map(t => this.#on(t, listener))
 
@@ -93,7 +94,7 @@ export class UpdateTool extends Accessor implements Evented {
     else return this.#on(type, listener);
   }
 
-  #on(type: ShapeEvent, listener: __esri.EventHandler): IHandle {
+  #on(type: ShapeEvent, listener: (event: UpdateEvent | DeleteEvent) => void): ResourceHandle {
     const listeners = this.#listeners.get(type) ?? new Set();
     listeners.add(listener);
 

@@ -5,6 +5,13 @@ import type { Config } from "@react-router/dev/config";
 export default {
   ssr: false,
   basename: "/city-download-portal/",
+  future: {
+    v8_middleware: true,
+    v8_splitRouteModules: true,
+    v8_viteEnvironmentApi: true,
+    v8_passThroughRequests: true,
+    v8_trailingSlashAwareDataRequests: true,
+  },
   buildEnd(args) {
     if (!args.viteConfig.isProduction) return;
     // When deploying to GitHub Pages, if you navigate from / to another

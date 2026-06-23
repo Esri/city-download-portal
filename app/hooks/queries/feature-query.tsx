@@ -16,7 +16,7 @@ import { useSelectionState } from "~/routes/_root.$scene/selection/selection-sto
 import SceneLayer from "@arcgis/core/layers/SceneLayer";
 import SceneLayerView from "@arcgis/core/views/layers/SceneLayerView";
 import { useDeferredValue } from "react";
-import { Polygon } from "@arcgis/core/geometry";
+import Polygon from "@arcgis/core/geometry/Polygon";
 import { useSceneLayerViews } from "../useSceneLayers";
 import { useQuery } from '@tanstack/react-query';
 import { useAccessorValue } from "../../arcgis/reactive-hooks";
@@ -24,13 +24,14 @@ import { useDebouncedValue } from "../useDebouncedValue";
 import { filterMeshGraphicsFromFeatureSet, type MeshGraphic } from "./download/export-query";
 import * as bufferOperator from "@arcgis/core/geometry/operators/bufferOperator.js";
 import * as unionOperator from "@arcgis/core/geometry/operators/unionOperator.js";
+import type FeatureSet from "@arcgis/core/rest/support/FeatureSet";
 
 /**
  * This function performs a client side query on the layer views, to find features that intersect with the given boundary.
  * This is very fast and is useful to keep track of the selected features during interaction, but the query does not return any geometries.
  */
 async function queryFeaturesWithoutGeometries(sceneLayerViews: SceneLayerView[], boundary: Polygon, signal: AbortSignal) {
-  const featureMap = new Map<SceneLayerView, __esri.FeatureSet['features']>();
+  const featureMap = new Map<SceneLayerView, FeatureSet['features']>();
   const promises: Promise<unknown>[] = [];
 
   for (const layerView of sceneLayerViews!) {

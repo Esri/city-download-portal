@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { Polygon } from "@arcgis/core/geometry";
+import Polygon from "@arcgis/core/geometry/Polygon";
 import '@esri/calcite-components/dist/components/calcite-button';
 import { CalciteButton } from "@esri/calcite-components-react";
 import { useRef } from "react";

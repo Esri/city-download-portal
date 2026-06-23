@@ -13,11 +13,12 @@
  * limitations under the License.
  */
 import Graphic from "~/arcgis/components/graphic";
-import {
-  SimpleFillSymbol,
-  SimpleLineSymbol
-} from "@arcgis/core/symbols";
-import { Point, Polygon, Polyline, SpatialReference } from "@arcgis/core/geometry";
+import SimpleFillSymbol from "@arcgis/core/symbols/SimpleFillSymbol";
+import SimpleLineSymbol from "@arcgis/core/symbols/SimpleLineSymbol";
+import Point from "@arcgis/core/geometry/Point";
+import Polygon from "@arcgis/core/geometry/Polygon";
+import Polyline from "@arcgis/core/geometry/Polyline";
+import SpatialReference from "@arcgis/core/geometry/SpatialReference";
 import { SymbologyColors } from "~/symbology/symbology";
 import { useHasTooManyFeatures } from "~/hooks/queries/feature-query";
 import { memo, useMemo } from "react";

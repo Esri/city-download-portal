@@ -25,6 +25,7 @@ import {
 import Minimap from "./selection-footprint/footprint-view";
 import {
   Dispatch,
+  type ComponentProps,
   useDeferredValue,
   useEffect,
   useRef
@@ -39,6 +40,8 @@ import { UpdateSelectionTool } from "../../selection/selection-tools/update-sele
 import { useQuery } from "@tanstack/react-query";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import type { BlockAction, BlockState } from '../sidebar';
+
+type CalciteIconName = ComponentProps<typeof CalciteIcon>["icon"];
 
 interface MeasurementsProps {
   state: BlockState['state'];
@@ -212,7 +215,7 @@ function Dimensions() {
 }
 
 interface MeasurementValueProps {
-  icon: string;
+  icon: CalciteIconName;
   label: string;
   value?: string | number | null;
 }

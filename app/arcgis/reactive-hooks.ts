@@ -14,10 +14,11 @@
  */
 import { useRef, useCallback, useSyncExternalStore, useEffect } from "react";
 import * as ru from "@arcgis/core/core/reactiveUtils";
+import type { ReactiveWatchOptions } from "@arcgis/core/core/reactiveUtils";
 
 export function useAccessorValue<Value>(
   getValue: () => Value,
-  options?: __esri.ReactiveWatchOptions & {
+  options?: ReactiveWatchOptions & {
     getServerValue?: () => Value | undefined;
   },
 ): Value | undefined {
@@ -65,7 +66,7 @@ export function useAccessorValue<Value>(
 export function useEffectWhen<Value>(
   getValue: () => Value,
   callback: (next: Value, previous?: Value | null) => void,
-  options?: __esri.ReactiveWatchOptions,
+  options?: ReactiveWatchOptions,
 ) {
   // this allows us to keep the `getValue` callback out of the `subscribe` methods dependency array
   // this way, the handle will not be removed any time getValue changes,
@@ -96,7 +97,7 @@ export function useEffectWhen<Value>(
 export function useWatch<Value>(
   getValue: () => Value,
   callback: (next: Value, previous?: Value | null) => void,
-  options?: __esri.ReactiveWatchOptions,
+  options?: ReactiveWatchOptions,
 ) {
   // this allows us to keep the `getValue` callback out of the `subscribe` methods dependency array
   // this way, the handle will not be removed any time getValue changes,

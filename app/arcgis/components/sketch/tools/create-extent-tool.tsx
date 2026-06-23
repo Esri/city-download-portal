@@ -14,7 +14,8 @@
  */
 import { subclass, property } from "@arcgis/core/core/accessorSupport/decorators";
 import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
-import { Point, Polygon } from "@arcgis/core/geometry";
+import Point from "@arcgis/core/geometry/Point";
+import Polygon from "@arcgis/core/geometry/Polygon";
 import CoreGraphic from "@arcgis/core/Graphic";
 import { CreateTool, ToolEvent } from "./create-tool";
 import { forwardRef, ReactNode, useEffect } from "react";
@@ -22,6 +23,7 @@ import useInstance from "~/hooks/useInstance";
 import { useSketch } from "../sketch";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import useProvideRef from "~/hooks/useProvideRef";
+import type { CreateOptions } from "@arcgis/core/widgets/Sketch/types";
 
 interface ExtentToolProps {
   onStart?: (point?: Polygon) => void;
@@ -48,10 +50,10 @@ const CreateExtentTool = forwardRef<CreateExtentToolManager, ExtentToolProps>(fu
   useEffect(() => {
     return manager.on(["start", "active", "complete", "cancel"], (event) => {
       switch (event.state) {
-        case 'start': return onStart?.(event.graphic.geometry as Polygon)
-        case 'active': return onActive?.(event.graphic.geometry as Polygon)
-        case 'complete': return onComplete?.(event.graphic.geometry as Polygon)
-        case 'cancel': return onCancel?.(event.graphic.geometry as Polygon)
+        case 'start': return onStart?.(event.graphic!.geometry as Polygon)
+        case 'active': return onActive?.(event.graphic!.geometry as Polygon)
+        case 'complete': return onComplete?.(event.graphic!.geometry as Polygon)
+        case 'cancel': return onCancel?.(event.graphic?.geometry as Polygon)
       }
     }).remove
   }, [onActive, onCancel, onComplete, onStart, manager])
@@ -116,7 +118,7 @@ class CreateExtentToolManager extends CreateTool {
         this.graphic!.geometry = polygon!;
       }, { sync: true }),
       reactiveUtils.watch(() => this.manager?.createGraphic?.geometry as Point | null,
-        (geometry: Point | nullish, previous: Point | nullish) => {
+        (geometry: Point | null | undefined, previous: Point | null | undefined) => {
           if (this.manager?.activeToolId !== this.id) return;
 
           if (geometry != null && previous == null) { // here we are starting to place a new point
@@ -188,7 +190,7 @@ class CreateExtentToolManager extends CreateTool {
     ])
   }
 
-  start = (options?: __esri.SketchViewModelCreateCreateOptions) => {
+  start = (options?: CreateOptions) => {
     if (this.state === 'ready') {
       this.manager!.activeToolId = this.id;
       this.manager!.create("point", options)

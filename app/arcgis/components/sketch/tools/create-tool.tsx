@@ -16,8 +16,9 @@ import Accessor from "@arcgis/core/core/Accessor";
 import { subclass, property } from "@arcgis/core/core/accessorSupport/decorators";
 import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
 import SketchViewModel from "@arcgis/core/widgets/Sketch/SketchViewModel";
-import Evented from "@arcgis/core/core/Evented";
-import { Symbol } from "@arcgis/core/symbols";
+import Symbol from "@arcgis/core/symbols/Symbol";
+import type { CreateEvent } from "@arcgis/core/widgets/Sketch/types";
+import type { ResourceHandle } from "@arcgis/core/core/Handles";
 
 export type ToolEvent = "start" | "active" | "complete" | "cancel"
 
@@ -28,9 +29,9 @@ export class SketchToolManager extends SketchViewModel {
 }
 
 @subclass()
-export class CreateTool extends Accessor implements Evented {
+export class CreateTool extends Accessor {
   readonly id = crypto.randomUUID();
-  #listeners = new Map<ToolEvent, Set<(event: __esri.SketchViewModelCreateEvent) => void>>();
+  #listeners = new Map<ToolEvent, Set<(event: CreateEvent) => void>>();
 
   protected readonly overwrittenEvents: ToolEvent[] = []
 
@@ -65,7 +66,7 @@ export class CreateTool extends Accessor implements Evented {
     ])
   }
 
-  emit(type: ToolEvent, event: __esri.SketchViewModelCreateEvent): boolean {
+  emit(type: ToolEvent, event: CreateEvent): boolean {
     if (!this.hasEventListener(type)) return false;
     for (const listener of this.#listeners.get(type) ?? []) {
       listener(event);
@@ -78,7 +79,7 @@ export class CreateTool extends Accessor implements Evented {
     return this.#listeners.has(type);
   }
 
-  on(type: ToolEvent | ToolEvent[], listener: (event: __esri.SketchViewModelCreateEvent) => void): IHandle {
+  on(type: ToolEvent | ToolEvent[], listener: (event: CreateEvent) => void): ResourceHandle {
     if (Array.isArray(type)) {
       const handles = type.map(t => this.#on(t, listener))
 
@@ -91,7 +92,7 @@ export class CreateTool extends Accessor implements Evented {
     else return this.#on(type, listener);
   }
 
-  #on(type: ToolEvent, listener: __esri.EventHandler): IHandle {
+  #on(type: ToolEvent, listener: (event: CreateEvent) => void): ResourceHandle {
     const listeners = this.#listeners.get(type) ?? new Set();
     listeners.add(listener);
 

@@ -1,5 +1,5 @@
 {
-  "name": "my-remix-app",
+  "name": "city-download-portal",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -16,9 +16,7 @@
     "@esri/calcite-components": "5.1.1",
     "@esri/calcite-components-react": "5.1.1",
     "@react-router/fs-routes": "^7.15.1",
-    "@react-router/node": "^7.15.1",
     "@tanstack/react-query": "^5.59.20",
-    "isbot": "^4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router": "^7.15.1",

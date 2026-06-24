@@ -150,8 +150,7 @@ async function createModelBlob(args: {
   }
 
   try {
-    // eslint-disable-next-line no-var
-    var mesh = await createMesh({
+    const mesh = await createMesh({
       scene,
       extent,
       features,
@@ -159,6 +158,10 @@ async function createModelBlob(args: {
       includeOriginMarker,
       signal,
     });
+
+    const file = await mesh!.toBinaryGLTF();
+    const blob = new Blob([file], { type: 'model/gltf-binary' });
+    return blob
   } catch (error) {
     throw new ToastableError({
       key: 'mesh-creation-failed',
@@ -168,10 +171,6 @@ async function createModelBlob(args: {
       originalError: error
     })
   }
-
-  const file = await mesh!.toBinaryGLTF();
-  const blob = new Blob([file], { type: 'model/gltf-binary' });
-  return blob
 }
 
 export type MeshGraphic = Omit<Graphic, 'geometry'> & { geometry: Mesh }

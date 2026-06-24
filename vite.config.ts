@@ -1,4 +1,3 @@
-/// <reference types="node" />
 import { resolve } from "path";
 import { reactRouter } from "@react-router/dev/vite";
 import { UserConfig, defineConfig, normalizePath } from "vite";

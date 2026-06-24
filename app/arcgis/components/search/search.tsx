@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSceneView } from "../views/scene-view/scene-view-context";
 import "@arcgis/map-components/components/arcgis-search";
 import { useScene } from "../maps/web-scene/scene-context";
@@ -31,12 +31,7 @@ type SearchComponent = ArcgisSearch & HTMLElement;
 export default function Search() {
   const view = useSceneView();
   const scene = useScene();
-  const [isSearchReady, setIsSearchReady] = useState(false);
-  const search = useInstance<SearchComponent | null>(() => {
-    if (typeof document === "undefined") {
-      return null;
-    }
-
+  const search = useInstance<SearchComponent>(() => {
     return document.createElement("arcgis-search") as SearchComponent;
   });
 
@@ -58,32 +53,10 @@ export default function Search() {
     },
   );
 
-  useEffect(() => {
-    if (!search) {
-      return;
-    }
-
-    setIsSearchReady(false);
-
-    const handleReady = () => {
-      setIsSearchReady(true);
-    };
-
-    search.addEventListener("arcgisReady", handleReady);
-
-    return () => {
-      search.removeEventListener("arcgisReady", handleReady);
-    };
-  }, [search]);
-
   // this is a little hacky, we access source.initialized just to access something on the source object
   // then we get a reaction any time a new source is added to the list of sources
   const sources = useAccessorValue(() => {
-    if (!search || !isSearchReady) {
-      return undefined;
-    }
-
-    return search.allSources.map(source => (source.initialized, source));
+    return search.allSources?.map(source => (source.initialized, source));
   }, { initial: true });
 
   useEffect(() => {
@@ -97,10 +70,6 @@ export default function Search() {
   }, [extent, sources])
 
   useEffect(() => {
-    if (!search) {
-      return;
-    }
-
     search.autoDestroyDisabled = true;
     search.view = view;
     search.resultGraphicDisabled = false;
@@ -115,15 +84,11 @@ export default function Search() {
 
     return () => {
       view.ui.remove(search);
-      void search.destroy();
+      search.view = null;
     }
   }, [view, search])
 
   const result = useAccessorValue(() => {
-    if (!search || !isSearchReady) {
-      return undefined;
-    }
-
     return search.resultGraphic?.geometry;
   });
   const query = useSearchHighlight(result);

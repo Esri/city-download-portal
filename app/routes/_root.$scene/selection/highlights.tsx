@@ -18,6 +18,7 @@ import SceneLayerView from "@arcgis/core/views/layers/SceneLayerView";
 import { useSceneView } from "~/arcgis/components/views/scene-view/scene-view-context";
 import HighlightOptions from "@arcgis/core/views/support/HighlightOptions.js";
 import Color from "@arcgis/core/Color";
+import type { ResourceHandle } from "@arcgis/core/core/Handles";
 
 interface HighlightProps {
   name: string;
@@ -44,7 +45,7 @@ function InternalHighlight({ name, color, data }: HighlightProps) {
 
   useEffect(() => {
     if (data) {
-      const handles: IHandle[] = [];
+      const handles: ResourceHandle[] = [];
       for (const [layerview, features] of data) {
         const handle = layerview.highlight(features, { name });
         handles.push(handle);

@@ -21,6 +21,7 @@ import { PropsWithChildren, createContext, useContext, useEffect, useId, useRef 
 import useInstance from "~/hooks/useInstance";
 import { useAccessorValue, useEffectWhen } from "~/arcgis/reactive-hooks";
 import { useSelectionState, WalkthroughState } from "~/routes/_root.$scene/selection/selection-store";
+import type { ReactiveWatchOptions } from "@arcgis/core/core/reactiveUtils";
 
 const StatePositionMap = {
   'not-started': 0,
@@ -92,7 +93,7 @@ export function useWalkthrough() {
   return useContext(WalkthroughContext);
 }
 
-export function useWalkthroughSelector<T>(get: (store: WalkthroughStore) => T, options?: __esri.ReactiveWatchOptions) {
+export function useWalkthroughSelector<T>(get: (store: WalkthroughStore) => T, options?: ReactiveWatchOptions) {
   const store = useWalkthrough()
 
   const currentGetter = useRef(get);

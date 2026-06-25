@@ -13,10 +13,11 @@
  * limitations under the License.
  */
 import Color from "@arcgis/core/Color";
-import { Point } from "@arcgis/core/geometry";
+import Point from "@arcgis/core/geometry/Point";
 import Mesh from "@arcgis/core/geometry/Mesh";
 import * as meshUtils from "@arcgis/core/geometry/support/meshUtils";
-import { PointSymbol3D, ObjectSymbol3DLayer } from "@arcgis/core/symbols";
+import PointSymbol3D from "@arcgis/core/symbols/PointSymbol3D";
+import ObjectSymbol3DLayer from "@arcgis/core/symbols/ObjectSymbol3DLayer";
 import Diamond from './diamond.gltf?url';
 import MeshMaterial from "@arcgis/core/geometry/support/MeshMaterial";
 import MeshMaterialMetallicRoughness from "@arcgis/core/geometry/support/MeshMaterialMetallicRoughness.js";

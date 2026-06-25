@@ -12,16 +12,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { Polygon } from "@arcgis/core/geometry";
+import Polygon from "@arcgis/core/geometry/Polygon";
 import { useSketch } from "../sketch";
 import { forwardRef, ReactNode, useEffect } from "react";
 import { property, subclass } from "@arcgis/core/core/accessorSupport/decorators";
 import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
 import useInstance from "~/hooks/useInstance";
 import { CreateTool, ToolEvent } from "./create-tool";
-import { PolygonSymbol3D } from "@arcgis/core/symbols";
+import PolygonSymbol3D from "@arcgis/core/symbols/PolygonSymbol3D";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import useProvideRef from "~/hooks/useProvideRef";
+import type { CreateOptions } from "@arcgis/core/widgets/Sketch/types";
 
 interface PolygonToolProps {
   onStart?: (point: Polygon) => void;
@@ -50,9 +51,9 @@ const CreatePolygonTool = forwardRef<CreateRectangleToolManager, PolygonToolProp
   useEffect(() => {
     return t.on(["start", "active", "complete", "cancel"], (event) => {
       switch (event.state) {
-        case 'start': return onStart?.(event.graphic.geometry as Polygon)
-        case 'active': return onActive?.(event.graphic.geometry as Polygon)
-        case 'complete': return onComplete?.(event.graphic.geometry as Polygon)
+        case 'start': return onStart?.(event.graphic!.geometry as Polygon)
+        case 'active': return onActive?.(event.graphic!.geometry as Polygon)
+        case 'complete': return onComplete?.(event.graphic!.geometry as Polygon)
         case 'cancel': return onCancel?.(event.graphic?.geometry as Polygon)
       }
     }).remove
@@ -103,7 +104,7 @@ class CreateRectangleToolManager extends CreateTool {
     ])
   }
 
-  start = (options?: __esri.SketchViewModelCreateCreateOptions) => {
+  start = (options?: CreateOptions) => {
     if (this.state === 'ready') {
       this.manager!.polygonSymbol = this.createSymbol!;
       this.manager!.activeToolId = this.id;

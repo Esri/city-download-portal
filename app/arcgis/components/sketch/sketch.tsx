@@ -28,6 +28,7 @@ import type GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import type MapNotesLayer from '@arcgis/core/layers/MapNotesLayer';
 import type SceneLayer from '@arcgis/core/layers/SceneLayer';
 import type WFSLayer from '@arcgis/core/layers/WFSLayer';
+import type SketchTooltipOptions from '@arcgis/core/views/interactive/sketch/SketchTooltipOptions.js';
 import { useWatch } from "~/arcgis/reactive-hooks";
 import Collection from '@arcgis/core/core/Collection';
 
@@ -43,7 +44,7 @@ export function useSketch() {
 
 interface SketchTooltipProps {
   inputEnabled: boolean,
-  helpMessageIcon: string;
+  helpMessageIcon: NonNullable<SketchTooltipOptions['helpMessageIcon']>;
   helpMessage: string;
 }
 export const SketchTooltip = memo(
@@ -109,6 +110,10 @@ export default function Sketch(props: PropsWithChildren<SketchProps>) {
   }, [view, layer, sketch]);
 
   useWatch(() => {
+    if (!view.map) {
+      return new Collection<SnappableLayer>();
+    }
+
     const snappableLayers = view.map.allLayers
       .filter(layer => isSnappableLayer(layer))
       .filter(layer => layer.type !== 'graphics' || layer.title === "selection-graphics-layer") as Collection<SnappableLayer>;
@@ -136,7 +141,7 @@ export default function Sketch(props: PropsWithChildren<SketchProps>) {
 
   useEffect(() => {
     const handle = sketch.on("create", (event) => {
-      if (event.state === 'complete') {
+      if (event.state === 'complete' && sketch.layer?.type === 'graphics') {
         sketch.layer.remove(event.graphic);
       }
     })

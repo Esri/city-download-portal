@@ -14,28 +14,26 @@
  */
 import { useEffect } from "react";
 import { useSceneView } from "../views/scene-view/scene-view-context";
-import SearchWidget from "@arcgis/core/widgets/Search.js";
+import "@arcgis/map-components/components/arcgis-search";
 import { useScene } from "../maps/web-scene/scene-context";
-import { GeometryUnion } from "@arcgis/core/unionTypes";
+import { GeometryUnion } from "@arcgis/core/geometry/types";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import useInstance from "~/hooks/useInstance";
 import Highlights from "~/routes/_root.$scene/selection/highlights";
 import SceneLayerView from "@arcgis/core/views/layers/SceneLayerView";
 import { useSceneLayerViews } from "~/hooks/useSceneLayers";
 import { useQuery } from '@tanstack/react-query';
+import type FeatureSet from "@arcgis/core/rest/support/FeatureSet";
+import type { ArcgisSearch } from "@arcgis/map-components/components/arcgis-search/customElement";
+
+type SearchComponent = ArcgisSearch & HTMLElement;
 
 export default function Search() {
   const view = useSceneView();
   const scene = useScene();
-  const widget = useInstance(() => new SearchWidget({
-    view,
-    resultGraphicEnabled: true,
-    popupEnabled: false,
-    goToOverride: (view, params) => {
-      params.target.zoom = 20
-      view.goTo(params.target, params.options)
-    }
-  }));
+  const search = useInstance<SearchComponent>(() => {
+    return document.createElement("arcgis-search") as SearchComponent;
+  });
 
   const extent = useAccessorValue(
     () => {
@@ -57,7 +55,9 @@ export default function Search() {
 
   // this is a little hacky, we access source.initialized just to access something on the source object
   // then we get a reaction any time a new source is added to the list of sources
-  const sources = useAccessorValue(() => widget.allSources.map(source => (source.initialized, source)), { initial: true });
+  const sources = useAccessorValue(() => {
+    return search.allSources?.map(source => (source.initialized, source));
+  }, { initial: true });
 
   useEffect(() => {
     if (extent && sources) {
@@ -70,27 +70,39 @@ export default function Search() {
   }, [extent, sources])
 
   useEffect(() => {
-    widget.view = view;
-    view.ui.add(widget, { position: 'top-left', index: 0 });
+    search.autoDestroyDisabled = true;
+    search.view = view;
+    search.resultGraphicDisabled = false;
+    search.popupDisabled = true;
+    search.goToOverride = async (view, params) => {
+      const target = params.target as typeof params.target & { zoom?: number };
+      target.zoom = 20
+      await view.goTo(target, params.options)
+    };
+
+    view.ui.add(search, { position: 'top-left', index: 0 });
 
     return () => {
-      view.ui.remove(widget);
+      view.ui.remove(search);
+      search.view = null;
     }
-  }, [scene.allLayers, view, widget])
+  }, [view, search])
 
-  const result = useAccessorValue(() => widget.resultGraphic?.geometry);
+  const result = useAccessorValue(() => {
+    return search.resultGraphic?.geometry;
+  });
   const query = useSearchHighlight(result);
   const highlights = query.isSuccess ? query.data : undefined
 
   return <Highlights name="search-result" data={highlights} />;
 }
 
-export function useSearchHighlight(searchGeometry?: GeometryUnion | nullish) {
+export function useSearchHighlight(searchGeometry?: GeometryUnion | null | undefined) {
   const sceneLayerViews = useSceneLayerViews();
   const query = useQuery({
     queryKey: ['search', sceneLayerViews?.map(lv => lv.layer.id), searchGeometry?.toJSON()],
     queryFn: async ({ signal }) => {
-      const featureMap = new Map<SceneLayerView, __esri.FeatureSet['features']>();
+      const featureMap = new Map<SceneLayerView, FeatureSet['features']>();
       const promises: Promise<unknown>[] = [];
       for (const layerView of sceneLayerViews!) {
         const query = layerView.layer.createQuery();

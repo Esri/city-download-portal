@@ -2,7 +2,7 @@
 
 The city download portal lets you extract 3D data from a webscene, and download it as a mesh to work with in other software.
 
-Built with the Arcgis Maps SDK for Javascript, React, Remix, and Tailwind CSS.
+Built with the Arcgis Maps SDK for Javascript, React, React Router, and Tailwind CSS.
 
 [View it live](https://esri.github.io/city-download-portal/)
 
@@ -28,7 +28,7 @@ This will install all the necessary dependencies required for the project.
 
 ## Development
 
-You can develop your SPA app just like you would a normal Remix app. Start the development server with:
+You can develop the SPA app like a normal React Router app. Start the development server with:
 
 ```shell
 npm run dev
@@ -46,11 +46,13 @@ To deploy manually, you can build the project and host it anywhere:
 npm run build
 ```
 
-This will generate a `build` directory containing the production-ready files. You can then serve these files using any static site hosting service.
+This will generate a `build/client` directory containing the production-ready static files. You can then serve these files using any static site hosting service.
+
+The app is configured as a static React Router SPA for GitHub Pages. `app/entry.client.tsx` is the browser entry point. `app/entry.server.tsx` is only used by `react-router build` to render the static HTML shell that becomes `build/client/index.html`; no server bundle is deployed or run by GitHub Pages. The build also creates `build/client/404.html` from the same HTML so direct links and refreshes on nested routes continue to load the SPA.
 
 ## Project structure
 
-This project is set up using [React Remix](https://remix.run/) and follows a file-based routing convention. Below you can see a description of some important files and directories.
+This project is set up using [React Router](https://reactrouter.com/) and follows a file-based routing convention. Below you can see a description of some important files and directories.
 
 ```
 app
@@ -61,6 +63,10 @@ app
 |       └── # hooks to allow usage of reactiveUtils in react components
 ├── components
 |   └── # shared components that don't belong to a particular route
+├── entry.client.tsx
+|   └── # browser entry point for the static React Router app
+├── entry.server.tsx
+|   └── # build-time HTML renderer used by react-router build
 ├── hooks
 |   ├── # various shared utility hooks
 │   └── queries
@@ -99,7 +105,7 @@ You can also simply send a link to an arbitrary scene id. The application will t
 
 - [ArcGIS Maps SDK for JavaScript - Developer documentation](https://developers.arcgis.com/javascript/latest/)
 - [ArcGIS Blog](http://blogs.esri.com/esri/arcgis/)
-- [Remix](https://remix.run/)
+- [React Router](https://reactrouter.com/)
 - [React](https://react.dev/)
 - [Tanstack Query](https://tanstack.com/query/latest)
 

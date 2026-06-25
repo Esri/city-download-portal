@@ -12,15 +12,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { Point } from "@arcgis/core/geometry";
+import Point from "@arcgis/core/geometry/Point";
 import { useSketch } from "../sketch";
 import { ReactNode, useEffect } from "react";
 import { property, subclass } from "@arcgis/core/core/accessorSupport/decorators";
 import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
 import useInstance from "~/hooks/useInstance";
 import { CreateTool, ToolEvent } from "./create-tool";
-import { PointSymbol3D } from "@arcgis/core/symbols";
+import PointSymbol3D from "@arcgis/core/symbols/PointSymbol3D";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
+import type { CreateOptions } from "@arcgis/core/widgets/Sketch/types";
 
 interface PointToolProps {
   onStart?: (point: Point) => void;
@@ -49,9 +50,9 @@ export default function CreatePointTool({
   useEffect(() => {
     return t.on(["start", "active", "complete", "cancel"], (event) => {
       switch (event.state) {
-        case 'start': return onStart?.(event.graphic.geometry as Point)
-        case 'active': return onActive?.(event.graphic.geometry as Point)
-        case 'complete': return onComplete?.(event.graphic.geometry as Point)
+        case 'start': return onStart?.(event.graphic!.geometry as Point)
+        case 'active': return onActive?.(event.graphic!.geometry as Point)
+        case 'complete': return onComplete?.(event.graphic!.geometry as Point)
         case 'cancel': return onCancel?.(event.graphic?.geometry as Point)
       }
     }).remove
@@ -100,7 +101,7 @@ class CreatePointToolManager extends CreateTool {
     ])
   }
 
-  start = (options?: __esri.SketchViewModelCreateCreateOptions) => {
+  start = (options?: CreateOptions) => {
     if (this.state === 'ready') {
       this.manager!.pointSymbol = this.createSymbol!;
       this.manager!.activeToolId = this.id;

@@ -38,6 +38,8 @@ function InternalView({ children }: PropsWithChildren) {
     const controller = new AbortController();
 
     view.when(async () => {
+      if (view.map == null) return;
+
       await Promise.all(view.map.allLayers.map(layer => layer.load()).toArray())
       const queryableSceneLayers = getSceneLayers(view.map);
       if (queryableSceneLayers.length === 0) {

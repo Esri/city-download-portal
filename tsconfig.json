@@ -6,9 +6,11 @@
     "app/utility-types.mts",
     ".react-router/types/**/*"
   ],
+  "exclude": ["vite.config.ts", "react-router.config.ts"],
   "compilerOptions": {
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
-    "types": ["@remix-run/node", "vite/client"],
+    "types": ["node", "vite/client"],
+    "rootDirs": [".", "./.react-router/types"],
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
     "isolatedModules": true,
@@ -22,11 +24,10 @@
     "allowJs": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": ".",
     "paths": {
       "~/*": ["./app/*"]
     },
-    // Remix takes care of building everything in `remix build`.
+    // React Router takes care of building everything in `react-router build`.
     "noEmit": true
   }
 }

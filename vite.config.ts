@@ -1,14 +1,28 @@
-import { resolve } from "node:path";
+import { resolve } from "path";
 import { reactRouter } from "@react-router/dev/vite";
-import { UserConfig, defineConfig } from "vite";
+import { UserConfig, defineConfig, normalizePath } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
-import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig(() => {
   const base = "/city-download-portal/";
+  const calciteAssetsPath = normalizePath(
+    resolve(
+      "node_modules",
+      "@esri",
+      "calcite-components",
+      "dist",
+      "cdn",
+      "assets",
+    ),
+  );
 
   return {
     base,
+    resolve: {
+      alias: {
+        "~": normalizePath(resolve("app")),
+      },
+    },
     ssr: {
       noExternal: [
         /@esri\/calcite-components/,
@@ -24,23 +38,16 @@ export default defineConfig(() => {
       ],
     },
     plugins: [
-      reactRouter(),
-      tsconfigPaths(),
       viteStaticCopy({
         targets: [
           {
-            src: resolve(
-              "node_modules",
-              "@esri",
-              "calcite-components",
-              "dist",
-              "calcite",
-              "assets",
-            ),
-            dest: ".",
+            src: `${calciteAssetsPath}/**/*`,
+            dest: "assets",
+            rename: { stripBase: 6 },
           },
         ],
       }),
+      reactRouter(),
     ],
     define: {
       BASE_PATH: JSON.stringify(base),

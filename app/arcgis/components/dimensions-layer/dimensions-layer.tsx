@@ -45,11 +45,14 @@ export default function DimensionsLayer({ fontSize = 0, children }: PropsWithChi
   }, [analyses.style, fontSize])
 
   useEffect(() => {
+    const map = view.map;
+    if (map == null) return;
+
     view.analyses.add(analyses);
-    view.map.add(layer);
+    map.add(layer);
 
     return () => {
-      view.map.remove(layer)
+      map.remove(layer)
       view.analyses.remove(analyses)
     };
   }, [analyses, layer, view.analyses, view.map]);

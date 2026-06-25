@@ -22,9 +22,9 @@ import {
   useRouteError,
   LinksFunction
 } from "react-router";
-import { setAssetPath } from "@esri/calcite-components/dist/components";
+import { setAssetPath } from "@esri/calcite-components";
 
-import calciteStyles from "@esri/calcite-components/dist/calcite/calcite.css?url";
+import calciteStyles from "@esri/calcite-components/main.css?url";
 import arcgisStyles from '@arcgis/core/assets/esri/themes/light/main.css?url'
 import tailwindStyles from "./global-styles/tailwind.css?url";
 import globalStyles from "./global-styles/global.css?url";
@@ -73,7 +73,7 @@ if (typeof window !== 'undefined') {
 let hasSetup = false;
 async function setup() {
   if (hasSetup) return;
-  setAssetPath(import.meta.resolve(BASE_PATH));
+  setAssetPath(`${BASE_PATH}assets`);
   document.body.classList.toggle('setup')
   hasSetup = true;
 }

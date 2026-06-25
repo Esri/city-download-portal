@@ -17,7 +17,8 @@ import CoreMapView from '@arcgis/core/views/MapView';
 import { MapViewContext } from "./map-view-context";
 import Color from "@arcgis/core/Color.js";
 import { useMap } from "../../maps/map/map-context";
-import { Extent, SpatialReference } from "@arcgis/core/geometry";
+import Extent from "@arcgis/core/geometry/Extent";
+import SpatialReference from "@arcgis/core/geometry/SpatialReference";
 import useInstance from "~/hooks/useInstance";
 import useProvideRef from "~/hooks/useProvideRef";
 
@@ -43,9 +44,10 @@ function InternalMapView({ ref, children, spatialReference, extent }: PropsWithC
     constraints: {
       snapToZoom: false,
     },
-    highlightOptions: {
-      color: new Color([255, 255, 0, 0.25])
-    },
+    highlights: [{
+      name: "default",
+      color: new Color([255, 255, 0, 0.25]),
+    }],
     ui: {
       components: []
     }

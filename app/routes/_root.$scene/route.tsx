@@ -96,7 +96,7 @@ function Header({ portalItem }: { portalItem: PortalItem }) {
 
   return (
     <CalciteNavigation slot="header">
-      <CalciteNavigationLogo slot="logo" heading={title ?? 'Untitled'} description={description ?? ""} />
+      <CalciteNavigationLogo slot="logo" heading={title ?? 'Untitled'} description={description?.replace(/<[^>]*>?/gm, "").trim() ?? ""} />
       <div slot="content-end">
         <CalciteNavigationUser
           className="h-full"

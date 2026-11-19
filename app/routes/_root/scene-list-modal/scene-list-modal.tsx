@@ -37,7 +37,9 @@ interface SceneCardProps {
 function SceneCard({ title, description, thumbnail, viewingMode, selected }: SceneCardProps) {
   const id = useId();
 
-  const sceneDescription = description?.trim() || "there would be a description here, if the portal item actually had one...";
+  // trim html tags from description
+  const plainDescription = description?.replace(/<[^>]*>?/gm, '').trim();
+  const sceneDescription = plainDescription || "there would be a description here, if the portal item actually had one...";
 
   // the prop ends up being rendered into a boolean attribute
   // so the string "false" is assigned to cards that are not selected

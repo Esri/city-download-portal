@@ -163,18 +163,18 @@ export class GLBToSTLConverter {
   /**
    * Download the STL file
    */
-  downloadSTL(stlData: string | DataView, filename: string = 'model.stl'): void {
-    let blob: Blob;
+  downloadSTL(stlData: string | DataView, filename: string = 'model.stl'): File {
+    let file: File;
     
     if (typeof stlData === 'string') {
-      blob = new Blob([stlData], { type: 'text/plain' });
+      file = new File([stlData], filename, { type: 'text/plain' });
     } else {
       // Convert DataView to Uint8Array for the blob
       const uint8Array = new Uint8Array(stlData.buffer, stlData.byteOffset, stlData.byteLength);
-      blob = new Blob([uint8Array], { type: 'application/octet-stream' });
+      file = new File([uint8Array], filename, { type: 'application/octet-stream' });
     }
     
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(file);
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
@@ -182,6 +182,7 @@ export class GLBToSTLConverter {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    return file;
   }
 }
 

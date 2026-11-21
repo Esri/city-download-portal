@@ -12,21 +12,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { Point } from "@arcgis/core/geometry";
+import type { CreateOptions } from "@arcgis/core/widgets/Sketch/types.js";
+import Point from "@arcgis/core/geometry/Point.js";
 import { useSketch } from "../sketch";
 import { ReactNode, useEffect } from "react";
 import { property, subclass } from "@arcgis/core/core/accessorSupport/decorators";
 import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
 import useInstance from "~/hooks/useInstance";
 import { CreateTool, ToolEvent } from "./create-tool";
-import { PointSymbol3D } from "@arcgis/core/symbols";
+import PointSymbol3D from "@arcgis/core/symbols/PointSymbol3D.js";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
 
 interface PointToolProps {
   onStart?: (point: Point) => void;
   onActive?: (point: Point) => void;
   onComplete?: (point: Point) => void;
-  onCancel?: (point: Point) => void;
+  onCancel?: (point?: Point) => void;
   createSymbol?: PointSymbol3D;
   children: ({ start }: { start: () => void, cancel: () => void, state: CreatePointToolManager['state'] }) => ReactNode;
 }
@@ -48,11 +49,13 @@ export default function CreatePointTool({
 
   useEffect(() => {
     return t.on(["start", "active", "complete", "cancel"], (event) => {
+      const geometry = event.graphic?.geometry;
+      if (event.state === "cancel") return onCancel?.(geometry instanceof Point ? geometry : undefined);
+      if (!(geometry instanceof Point)) return;
       switch (event.state) {
-        case 'start': return onStart?.(event.graphic.geometry as Point)
-        case 'active': return onActive?.(event.graphic.geometry as Point)
-        case 'complete': return onComplete?.(event.graphic.geometry as Point)
-        case 'cancel': return onCancel?.(event.graphic?.geometry as Point)
+        case 'start': return onStart?.(geometry)
+        case 'active': return onActive?.(geometry)
+        case 'complete': return onComplete?.(geometry)
       }
     }).remove
   }, [onActive, onCancel, onComplete, onStart, t])
@@ -100,7 +103,7 @@ class CreatePointToolManager extends CreateTool {
     ])
   }
 
-  start = (options?: __esri.SketchViewModelCreateCreateOptions) => {
+  start = (options?: CreateOptions) => {
     if (this.state === 'ready') {
       this.manager!.pointSymbol = this.createSymbol!;
       this.manager!.activeToolId = this.id;

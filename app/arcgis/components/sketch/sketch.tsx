@@ -30,6 +30,7 @@ import type SceneLayer from '@arcgis/core/layers/SceneLayer';
 import type WFSLayer from '@arcgis/core/layers/WFSLayer';
 import { useWatch } from "~/arcgis/reactive-hooks";
 import Collection from '@arcgis/core/core/Collection';
+import type SketchViewModel from "@arcgis/core/widgets/Sketch/SketchViewModel.js";
 
 interface SketchProps {
   ref?: ForwardedRef<SketchToolManager>;
@@ -43,7 +44,7 @@ export function useSketch() {
 
 interface SketchTooltipProps {
   inputEnabled: boolean,
-  helpMessageIcon: string;
+  helpMessageIcon: SketchViewModel["tooltipOptions"]["helpMessageIcon"];
   helpMessage: string;
 }
 export const SketchTooltip = memo(
@@ -109,9 +110,9 @@ export default function Sketch(props: PropsWithChildren<SketchProps>) {
   }, [view, layer, sketch]);
 
   useWatch(() => {
-    const snappableLayers = view.map.allLayers
+    const snappableLayers = view.map?.allLayers
       .filter(layer => isSnappableLayer(layer))
-      .filter(layer => layer.type !== 'graphics' || layer.title === "selection-graphics-layer") as Collection<SnappableLayer>;
+      .filter(layer => layer.type !== 'graphics' || layer.title === "selection-graphics-layer") as Collection<SnappableLayer> | undefined;
 
     return snappableLayers;
   }, (layer, previous) => {
@@ -126,7 +127,7 @@ export default function Sketch(props: PropsWithChildren<SketchProps>) {
       }
     }
 
-    sketch.snappingOptions
+    if (layer) sketch.snappingOptions
       .featureSources
       .addMany(layer.map(layer => new FeatureSnappingLayerSource({
         layer,
@@ -136,13 +137,13 @@ export default function Sketch(props: PropsWithChildren<SketchProps>) {
 
   useEffect(() => {
     const handle = sketch.on("create", (event) => {
-      if (event.state === 'complete') {
-        sketch.layer.remove(event.graphic);
+      if (event.state === 'complete' && event.graphic) {
+        layer.remove(event.graphic);
       }
     })
 
-    return handle.remove
-  });
+    return () => handle.remove();
+  }, [layer, sketch]);
 
   return (
     <SketchContext.Provider value={sketch}>

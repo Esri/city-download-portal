@@ -60,20 +60,23 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
 
   const featureQuery = useSelectedFeaturesFromLayers(editingState === 'idle');
 
-  const modelOrigin = usePreciseOriginElevationInfo().data;
-
+  const originQuery = usePreciseOriginElevationInfo();
+  const modelOrigin = originQuery.isPlaceholderData ? undefined : originQuery.data;
   const hasTooManyFeatures = useHasTooManyFeatures();
-
-  const downloadQuery = useExportSizeQuery({
-    includeOriginMarker,
-    extrudeBase,
-    extrusionDepth: extrusionDepth === '' ? 50 : (parseFloat(extrusionDepth) || 50),
-    enabled: editingState === 'idle' && !hasTooManyFeatures
-  });
-
+  const exportParams = editingState === 'idle' && !hasTooManyFeatures && selection?.extent && featureQuery.data && modelOrigin
+    ? {
+        scene,
+        extent: selection.extent,
+        features: featureQuery.data,
+        origin: modelOrigin,
+        includeOriginMarker,
+        extrudeBase,
+        extrusionDepth: parseFloat(extrusionDepth) || 50,
+      }
+    : undefined;
+  const downloadQuery = useExportSizeQuery(exportParams);
   const mutation = useDownloadExportMutation();
-
-  const canDownload = editingState === 'idle' && !hasTooManyFeatures && selection?.extent && featureQuery.data
+  const canDownload = exportParams != null;
 
   const fileSize = downloadQuery.data;
 
@@ -98,7 +101,7 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
     <CalciteBlock
       id={blockElementId}
       heading="Export"
-      collapsible
+      expandable
       ref={ref}
       expanded={state === 'open'}
       onClick={() => {
@@ -186,18 +189,7 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
         disabled={!canDownload || mutation.isPending}
         loading={mutation.isPending}
         onClick={() => {
-          if (canDownload) {
-            const extrusionDepthValue = extrusionDepth === '' ? 50 : (parseFloat(extrusionDepth) || 50);
-            const exportParams = {
-              scene,
-              extent: selection!.extent!,
-              features: featureQuery.data!,
-              origin: modelOrigin!,
-              includeOriginMarker,
-              extrudeBase,
-              extrusionDepth: extrusionDepthValue,
-              filename,
-            };
+          if (exportParams) {
             mutation.mutateAsync(exportParams)
               .then(blob => {
                 const name = filename || title || 'model';

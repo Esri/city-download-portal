@@ -1,10 +1,10 @@
 import { resolve } from "node:path";
 import { reactRouter } from "@react-router/dev/vite";
-import { UserConfig, defineConfig } from "vite";
+import { UserConfig, defineConfig, normalizePath } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-export default defineConfig(() => {
+export default defineConfig(({ isSsrBuild }) => {
   const base = "/city-download-portal/";
 
   return {
@@ -26,17 +26,17 @@ export default defineConfig(() => {
     plugins: [
       reactRouter(),
       tsconfigPaths(),
-      viteStaticCopy({
+      !isSsrBuild && viteStaticCopy({
         targets: [
           {
-            src: resolve(
+            src: normalizePath(resolve(
               "node_modules",
               "@esri",
               "calcite-components",
               "dist",
-              "calcite",
+              "cdn",
               "assets",
-            ),
+            )),
             dest: ".",
           },
         ],

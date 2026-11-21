@@ -32,8 +32,11 @@ import { SketchLayer } from "~/arcgis/components/sketch/sketch-layer";
 import { CreateSelectionTool } from "./selection/selection-tools/create-selection-tool";
 import WalkthroughPopover from "./selection/walk-through-popover";
 import { RootShellPortal } from "~/routes/_root/root-shell";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import WalkthroughStoreProvider from "./selection/walk-through-context";
+import { useSelectionState } from "./selection/selection-store";
+import { createHexagonFootprint } from "~/hooks/queries/download/hexagon-footprint";
+import { OSM_SCENE_ID, OSM_SCENE_TITLE } from "~/data/osm-scene";
 
 const SceneView = lazy(() => import('~/arcgis/components/views/scene-view/scene-view'));
 const Scene = lazy(() => import('~/arcgis/components/maps/web-scene/scene'));
@@ -62,7 +65,7 @@ export async function clientLoader({ params }: LoaderFunctionArgs) {
 
   return {
     instance: scene,
-    title: scene.title,
+    title: scene.id === OSM_SCENE_ID ? OSM_SCENE_TITLE : scene.title,
     description: scene.description,
     thumbnailUrl: scene.thumbnailUrl,
   };
@@ -93,10 +96,15 @@ function Header({ portalItem }: { portalItem: PortalItem }) {
 
   const title = useAccessorValue(() => portalItem.title);
   const description = useAccessorValue(() => portalItem.description);
+  const isOsm = portalItem.id === OSM_SCENE_ID;
 
   return (
     <CalciteNavigation slot="header">
-      <CalciteNavigationLogo slot="logo" heading={title ?? 'Untitled'} description={description ?? ""} />
+      <CalciteNavigationLogo
+        slot="logo"
+        heading={isOsm ? OSM_SCENE_TITLE : title ?? "Untitled"}
+        description={isOsm ? "Select an area to export terrain and OpenStreetMap buildings." : description ?? ""}
+      />
       <div slot="content-end">
         <CalciteNavigationUser
           className="h-full"
@@ -140,17 +148,35 @@ export default function SceneRoute() {
     instance
   } = useLoaderData() as Awaited<ReturnType<typeof clientLoader>>;
 
+  const selectionStore = useSelectionState();
+  const extent = useAccessorValue(() => selectionStore.selection?.extent);
+  const isHexagon = useAccessorValue(() => selectionStore.footprintShape) === "hexagon";
+  const footprint = useQuery({
+    queryKey: ["hexagon-footprint", extent?.toJSON()],
+    queryFn: ({ signal }) => createHexagonFootprint(extent!, signal),
+    enabled: isHexagon && extent != null && extent.width > 0 && extent.height > 0,
+    placeholderData: undefined,
+    gcTime: 0,
+    retry: false,
+  });
+  const hexagon = isHexagon ? footprint.data : undefined;
+
   return (
     <WalkthroughStoreProvider>
-      <Scene portalItem={instance}>
+      <Scene key={instance.id} portalItem={instance}>
         <Header portalItem={instance} />
         <SceneView>
           <SketchLayer disableZ elevationMode="on-the-ground" title="selection-graphics-layer">
             <Search />
-            <Sidebar key={"sidebar" + instance.id} />
+            <Sidebar
+              key={"sidebar" + instance.id}
+              hexagon={hexagon}
+              footprintError={isHexagon ? footprint.error : null}
+              footprintLoading={isHexagon && footprint.isFetching}
+            />
             <ViewUI position="bottom-left">
               <div className="flex gap-4">
-                <SelectionGraphic />
+                <SelectionGraphic hexagon={hexagon?.outline} />
                 <CreateSelectionTool />
               </div>
             </ViewUI>

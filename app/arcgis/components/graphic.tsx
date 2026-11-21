@@ -15,14 +15,14 @@
 import { ForwardedRef, ReactNode, useEffect, useId, useRef } from "react";
 import { useGraphicsLayer } from "./graphics-layer";
 import CoreGraphic from '@arcgis/core/Graphic';
-import { Geometry } from '@arcgis/core/geometry';
-import { Symbol as ArcgisSymbol } from '@arcgis/core/symbols';
+import Geometry from '@arcgis/core/geometry/Geometry.js';
+import type { SymbolUnion } from '@arcgis/core/symbols/types.js';
 import useProvideRef from "~/hooks/useProvideRef";
 import useInstance from "~/hooks/useInstance";
 
 interface GraphicProps<GeometryType extends Geometry = Geometry> {
   geometry: GeometryType;
-  symbol: ArcgisSymbol;
+  symbol: SymbolUnion;
   ref?: ForwardedRef<CoreGraphic>;
   index?: number
 }

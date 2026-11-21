@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { GLBToSTLConverter } from '~/utils/glb-to-stl-converter';
 
 export interface STLConversionOptions {
@@ -8,10 +8,11 @@ export interface STLConversionOptions {
   scale?: number;
   /** Whether to merge all geometries into a single mesh */
   mergeGeometries?: boolean;
+  binaryHeader?: string;
 }
 
 export function useSTLConverter() {
-  const converter = new GLBToSTLConverter();
+  const converter = useMemo(() => new GLBToSTLConverter(), []);
 
   const convertBlobToSTL = useCallback(async (
     glbBlob: Blob,
@@ -27,11 +28,14 @@ export function useSTLConverter() {
         scale: options.scale ?? 1,
         mergeGeometries: options.mergeGeometries ?? true
       });
+      if (options.binaryHeader && stlData instanceof DataView) {
+        const header = new Uint8Array(stlData.buffer, stlData.byteOffset, 80);
+        header.set(new TextEncoder().encode(options.binaryHeader).subarray(0, header.length));
+      }
       
       // Download the STL file
-      converter.downloadSTL(stlData, `${filename}.stl`);
-      
-      return true;
+      return converter.downloadSTL(stlData, `${filename}.stl`);
+
     } catch (error) {
       console.error('STL conversion failed:', error);
       throw error;

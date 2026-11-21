@@ -13,11 +13,13 @@
  * limitations under the License.
  */
 import { memo, useDeferredValue, useMemo } from "react";
-import { Polygon } from "@arcgis/core/geometry";
+import Polygon from "@arcgis/core/geometry/Polygon.js";
 import Graphic from "~/arcgis/components/graphic";
-import { ExtrudeSymbol3DLayer, FillSymbol3DLayer, PolygonSymbol3D } from "@arcgis/core/symbols";
+import ExtrudeSymbol3DLayer from "@arcgis/core/symbols/ExtrudeSymbol3DLayer.js";
+import FillSymbol3DLayer from "@arcgis/core/symbols/FillSymbol3DLayer.js";
+import PolygonSymbol3D from "@arcgis/core/symbols/PolygonSymbol3D.js";
 import GraphicsLayer from "~/arcgis/components/graphics-layer";
-import { createOriginSymbol, SymbologyColors } from "~/symbology/symbology";
+import { createOriginSymbol, exportFootprintColor, SymbologyColors } from "~/symbology/symbology";
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store";
 import { usePreciseOriginElevationInfo, useSelectionVolumeExtent } from "~/hooks/queries/elevation-query";
 import SolidEdges3D from "@arcgis/core/symbols/edges/SolidEdges3D.js";
@@ -25,7 +27,7 @@ import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import { useHasTooManyFeatures, useSelectedFeaturesFromLayerViews } from "~/hooks/queries/feature-query";
 import Highlights from "./highlights";
 
-function InternalSelectionGraphic() {
+function InternalSelectionGraphic({ hexagon }: { hexagon?: Polygon }) {
   const store = useSelectionState();
   const isIdle = useAccessorValue(() => store.editingState === 'idle');
   const isUpdatingOrigin = useAccessorValue(() => store.editingState === 'updating-origin');
@@ -44,6 +46,11 @@ function InternalSelectionGraphic() {
           symbol={!hasTooManyFeatures ? FootprintSymbol : InvalidFootprintSymbol}
         />
       ) : null}
+      {hexagon && (
+        <GraphicsLayer title="Hexagon export boundary">
+          <Graphic geometry={hexagon} symbol={HexagonSymbol} />
+        </GraphicsLayer>
+      )}
       <GraphicsLayer elevationMode="absolute-height">
         {isIdle ? <Volume /> : null}
         {!isUpdatingOrigin ? <Origin /> : null}
@@ -140,6 +147,12 @@ const FootprintSymbol = new PolygonSymbol3D({
   ]
 });
 
+const HexagonSymbol = new PolygonSymbol3D({
+  symbolLayers: [new FillSymbol3DLayer({
+    material: { color: [0, 0, 0, 0] },
+    outline: { color: exportFootprintColor, size: 3 },
+  })],
+});
 
 const InvalidFootprintSymbol = new PolygonSymbol3D({
   symbolLayers: [

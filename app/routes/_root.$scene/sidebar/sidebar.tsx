@@ -26,6 +26,7 @@ import { useEffect, useReducer } from "react";
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import { useReferenceElementId } from "../selection/walk-through-context";
+import type { HexagonFootprint } from "~/hooks/queries/download/hexagon-footprint";
 
 export type BlockAction = { mode?: 'managed' | 'manual', type: 'open' | 'close', block: keyof SidebarState }
 
@@ -61,7 +62,13 @@ const createInitialState: SidebarState = {
   exportSettings: { mode: 'managed', state: 'closed' },
 };
 
-export default function Sidebar() {
+export default function Sidebar({
+  hexagon, footprintError, footprintLoading,
+}: {
+  hexagon?: HexagonFootprint;
+  footprintError: Error | null;
+  footprintLoading: boolean;
+}) {
   const id = useReferenceElementId(['confirming', "updating-origin"], 'left');
   const isRoot = useIsRoot();
 
@@ -121,8 +128,15 @@ export default function Sidebar() {
         <SelectionInfo
           state={blockState.selection.state}
           dispatch={dispatch}
+          hexagon={hexagon?.outline}
         />
-        <ExportSettings state={blockState.exportSettings.state} dispatch={dispatch} />
+        <ExportSettings
+          state={blockState.exportSettings.state}
+          dispatch={dispatch}
+          hexagon={hexagon}
+          footprintError={footprintError}
+          footprintLoading={footprintLoading}
+        />
       </CalcitePanel>
     </CalciteShellPanel>
   );

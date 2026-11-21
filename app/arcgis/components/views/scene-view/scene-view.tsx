@@ -19,6 +19,7 @@ import { useScene } from "../../maps/web-scene/scene-context";
 import useInstance from "~/hooks/useInstance";
 import { useToast } from "~/components/toast";
 import { getSceneLayers } from "~/hooks/useSceneLayers";
+import { OSM_SCENE_CAMERA, OSM_SCENE_ID } from "~/data/osm-scene";
 
 function InternalView({ children }: PropsWithChildren) {
   const scene = useScene();
@@ -26,6 +27,7 @@ function InternalView({ children }: PropsWithChildren) {
   const view = useInstance(() => new CoreSceneView({
     map: scene,
     popupEnabled: false,
+    ...(scene.portalItem?.id === OSM_SCENE_ID ? { camera: OSM_SCENE_CAMERA } : {}),
   }));
 
   const toast = useToast();
@@ -38,8 +40,10 @@ function InternalView({ children }: PropsWithChildren) {
     const controller = new AbortController();
 
     view.when(async () => {
-      await Promise.all(view.map.allLayers.map(layer => layer.load()).toArray())
-      const queryableSceneLayers = getSceneLayers(view.map);
+      if (controller.signal.aborted || scene.portalItem?.id === OSM_SCENE_ID) return;
+      await Promise.all(scene.allLayers.map(layer => layer.load()).toArray());
+      if (controller.signal.aborted) return;
+      const queryableSceneLayers = getSceneLayers(scene);
       if (queryableSceneLayers.length === 0) {
         toast({
           message: 'Exported meshes will only include terrain.',
@@ -51,7 +55,7 @@ function InternalView({ children }: PropsWithChildren) {
     })
 
     return () => controller.abort();
-  }, [toast, view]);
+  }, [scene, toast, view]);
 
 
   return (

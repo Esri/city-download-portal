@@ -1,8 +1,8 @@
 # City Download Portal
 
-The city download portal lets you extract 3D data from a webscene, and download it as a mesh to work with in other software.
+The City Download Portal turns selected areas in web scenes into 3D models for printing or use in other software.
 
-Built with the Arcgis Maps SDK for Javascript, React, Remix, and Tailwind CSS.
+Built with ArcGIS Maps SDK for JavaScript, Calcite Design System, React Router, Three.js, and Tailwind CSS.
 
 [View it live](https://paulgibbs3rd.github.io/city-download-portal/)
 
@@ -10,25 +10,26 @@ Built with the Arcgis Maps SDK for Javascript, React, Remix, and Tailwind CSS.
 
 ## Features
 
-- Select an area to generate a mesh using interactive tools, or by providing your own georeferencing data
-- Export your selection to a `.glb` file for consumption in other programs
-- View georeferencing and measurment data about the selected area
+- Select an area and export a rectangle or hexagon as GLB or STL. Enable terrain extrusion to give the model a flat-bottomed base.
+- Browse the included city scenes or use **OpenStreetMap 3D** to export terrain and buildings generated from OpenStreetMap footprints.
+- Preview the downloaded model in the browser, or open a GLB or STL file from your device.
+- Inspect georeferencing and measurements for the selected area.
 
 ## Setting up
 
 To set up the project, clone the repository and install the dependencies:
 
 ```shell
-git clone git@github.com:gunnnnii/city-download-portal.git
+git clone https://github.com/PaulGibbs3rd/city-download-portal.git
 cd city-download-portal
-npm install
+npm ci
 ```
 
 This will install all the necessary dependencies required for the project.
 
 ## Development
 
-You can develop your SPA app just like you would a normal Remix app. Start the development server with:
+Start the development server with:
 
 ```shell
 npm run dev
@@ -38,19 +39,22 @@ This will start the development server and watch for changes in your source file
 
 ## Deployment
 
-The project can be automatically deployed to GitHub Pages using GitHub Actions. The deployment workflow is defined in `.github/workflows/build-deploy.yml`.
+GitHub Actions builds and deploys the site to GitHub Pages when changes reach `main`. The workflow is defined in `.github/workflows/build-deploy.yml`.
 
-To deploy manually, you can build the project and host it anywhere:
+To preview the production build locally:
 
 ```shell
+npm ci
+npm run typecheck
 npm run build
+npm run preview -- --outDir build/client
 ```
 
-This will generate a `build` directory containing the production-ready files. You can then serve these files using any static site hosting service.
+The deployable files are in `build/client`. The app is built for the `/city-download-portal/` path and includes a `404.html` fallback for direct links to scenes on GitHub Pages.
 
 ## Project structure
 
-This project is set up using [React Remix](https://remix.run/) and follows a file-based routing convention. Below you can see a description of some important files and directories.
+This project uses [React Router](https://reactrouter.com/) with file-based routing.
 
 ```
 app
@@ -99,7 +103,7 @@ You can also simply send a link to an arbitrary scene id. The application will t
 
 - [ArcGIS Maps SDK for JavaScript - Developer documentation](https://developers.arcgis.com/javascript/latest/)
 - [ArcGIS Blog](http://blogs.esri.com/esri/arcgis/)
-- [Remix](https://remix.run/)
+- [React Router](https://reactrouter.com/)
 - [React](https://react.dev/)
 - [Tanstack Query](https://tanstack.com/query/latest)
 

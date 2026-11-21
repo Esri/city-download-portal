@@ -15,15 +15,17 @@
 import Accessor from "@arcgis/core/core/Accessor";
 import { subclass, property } from "@arcgis/core/core/accessorSupport/decorators";
 import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
-import Evented from "@arcgis/core/core/Evented";
+import type { ResourceHandle } from "@arcgis/core/core/Handles.js";
+import type { UpdateEvent, DeleteEvent } from "@arcgis/core/widgets/Sketch/types.js";
 import { SketchToolManager } from "./create-tool";
 
 export type ShapeEvent = "start" | "active" | "complete" | "cancel" | "delete"
+type ShapeListener = (event: UpdateEvent | DeleteEvent, type: ShapeEvent) => void;
 
 @subclass()
-export class UpdateTool extends Accessor implements Evented {
+export class UpdateTool extends Accessor {
   readonly id = crypto.randomUUID();
-  #listeners = new Map<ShapeEvent, Set<(event: __esri.SketchViewModelUpdateEvent | __esri.SketchDeleteEvent) => void>>();
+  #listeners = new Map<ShapeEvent, Set<ShapeListener>>();
 
   protected readonly type!: "move" | "transform" | "reshape";
   protected readonly overwrittenEvents: ShapeEvent[] = []
@@ -41,7 +43,7 @@ export class UpdateTool extends Accessor implements Evented {
     this.addHandles([
       reactiveUtils.watch(() => this.manager, (vm) => {
         let didDelete = false;
-        let eventToEmitAfterAbort: any = null;
+        let eventToEmitAfterAbort: UpdateEvent | DeleteEvent | null = null;
         vm?.on("delete", (event) => {
           didDelete = true;
           eventToEmitAfterAbort = event;
@@ -53,7 +55,7 @@ export class UpdateTool extends Accessor implements Evented {
                 eventToEmitAfterAbort = event;
 
                 setTimeout(() => {
-                  this.emit(didDelete ? 'delete' : 'cancel', eventToEmitAfterAbort)
+                  if (eventToEmitAfterAbort) this.emit(didDelete ? 'delete' : 'cancel', eventToEmitAfterAbort);
                   didDelete = false;
                 })
               } else this.emit(event.state, event);
@@ -67,10 +69,10 @@ export class UpdateTool extends Accessor implements Evented {
     ])
   }
 
-  emit(type: ShapeEvent, event: __esri.SketchViewModelUpdateEvent | __esri.SketchDeleteEvent): boolean {
+  emit(type: ShapeEvent, event: UpdateEvent | DeleteEvent): boolean {
     if (!this.hasEventListener(type)) return false;
     for (const listener of this.#listeners.get(type) ?? []) {
-      listener(event);
+      listener(event, type);
     }
 
     return true;
@@ -80,7 +82,7 @@ export class UpdateTool extends Accessor implements Evented {
     return this.#listeners.has(type);
   }
 
-  on(type: ShapeEvent | ShapeEvent[], listener: (event: __esri.SketchViewModelUpdateEvent | __esri.SketchDeleteEvent) => void): IHandle {
+  on(type: ShapeEvent | ShapeEvent[], listener: ShapeListener): ResourceHandle {
     if (Array.isArray(type)) {
       const handles = type.map(t => this.#on(t, listener))
 
@@ -93,7 +95,7 @@ export class UpdateTool extends Accessor implements Evented {
     else return this.#on(type, listener);
   }
 
-  #on(type: ShapeEvent, listener: __esri.EventHandler): IHandle {
+  #on(type: ShapeEvent, listener: ShapeListener): ResourceHandle {
     const listeners = this.#listeners.get(type) ?? new Set();
     listeners.add(listener);
 

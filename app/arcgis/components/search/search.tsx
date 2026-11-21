@@ -21,6 +21,7 @@ import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import useInstance from "~/hooks/useInstance";
 import Highlights from "~/routes/_root.$scene/selection/highlights";
 import SceneLayerView from "@arcgis/core/views/layers/SceneLayerView";
+import type FeatureSet from "@arcgis/core/rest/support/FeatureSet.js";
 import { useSceneLayerViews } from "~/hooks/useSceneLayers";
 import { useQuery } from '@tanstack/react-query';
 
@@ -31,9 +32,11 @@ export default function Search() {
     view,
     resultGraphicEnabled: true,
     popupEnabled: false,
-    goToOverride: (view, params) => {
-      params.target.zoom = 20
-      view.goTo(params.target, params.options)
+    goToOverride: (_view, { target, options }) => {
+      if ("target" in target || "scale" in target || "zoom" in target) {
+        return view.goTo({ ...target, zoom: 20 }, options);
+      }
+      return view.goTo(target, options);
     }
   }));
 
@@ -85,12 +88,12 @@ export default function Search() {
   return <Highlights name="search-result" data={highlights} />;
 }
 
-export function useSearchHighlight(searchGeometry?: GeometryUnion | nullish) {
+export function useSearchHighlight(searchGeometry?: GeometryUnion | null) {
   const sceneLayerViews = useSceneLayerViews();
   const query = useQuery({
     queryKey: ['search', sceneLayerViews?.map(lv => lv.layer.id), searchGeometry?.toJSON()],
     queryFn: async ({ signal }) => {
-      const featureMap = new Map<SceneLayerView, __esri.FeatureSet['features']>();
+      const featureMap = new Map<SceneLayerView, FeatureSet['features']>();
       const promises: Promise<unknown>[] = [];
       for (const layerView of sceneLayerViews!) {
         const query = layerView.layer.createQuery();

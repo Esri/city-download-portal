@@ -12,10 +12,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import type { Length } from "@arcgis/core/core/quantity.js";
 import CoreLengthDimension from "@arcgis/core/analysis/LengthDimension.js";
 import { useDimensions } from "./dimensions-context";
 import { memo, useEffect } from "react";
-import { Point } from "@arcgis/core/geometry";
+import Point from "@arcgis/core/geometry/Point.js";
 import useInstance from "~/hooks/useInstance";
 
 interface LengthDimensionProps {
@@ -24,7 +25,7 @@ interface LengthDimensionProps {
   measureType?: 'horizontal' | 'vertical' | 'direct'
   orientation?: number;
   offset?: number;
-  onMeasurementResult?: (result?: __esri.Length) => void;
+  onMeasurementResult?: (result?: Length) => void;
 }
 
 function InternalLengthDimension({

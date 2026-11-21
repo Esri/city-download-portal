@@ -12,14 +12,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { Polygon } from "@arcgis/core/geometry";
+import type { CreateOptions } from "@arcgis/core/widgets/Sketch/types.js";
+import Polygon from "@arcgis/core/geometry/Polygon.js";
 import { useSketch } from "../sketch";
 import { forwardRef, ReactNode, useEffect } from "react";
 import { property, subclass } from "@arcgis/core/core/accessorSupport/decorators";
 import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
 import useInstance from "~/hooks/useInstance";
 import { CreateTool, ToolEvent } from "./create-tool";
-import { PolygonSymbol3D } from "@arcgis/core/symbols";
+import PolygonSymbol3D from "@arcgis/core/symbols/PolygonSymbol3D.js";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import useProvideRef from "~/hooks/useProvideRef";
 
@@ -27,7 +28,7 @@ interface PolygonToolProps {
   onStart?: (point: Polygon) => void;
   onActive?: (point: Polygon) => void;
   onComplete?: (point: Polygon) => void;
-  onCancel?: (point: Polygon) => void;
+  onCancel?: (point?: Polygon) => void;
   createSymbol?: PolygonSymbol3D;
   children: ({ start }: { start: () => void, cancel: () => void, state: CreateRectangleToolManager['state'] }) => ReactNode;
 }
@@ -49,11 +50,13 @@ const CreatePolygonTool = forwardRef<CreateRectangleToolManager, PolygonToolProp
 
   useEffect(() => {
     return t.on(["start", "active", "complete", "cancel"], (event) => {
+      const geometry = event.graphic?.geometry;
+      if (event.state === "cancel") return onCancel?.(geometry instanceof Polygon ? geometry : undefined);
+      if (!(geometry instanceof Polygon)) return;
       switch (event.state) {
-        case 'start': return onStart?.(event.graphic.geometry as Polygon)
-        case 'active': return onActive?.(event.graphic.geometry as Polygon)
-        case 'complete': return onComplete?.(event.graphic.geometry as Polygon)
-        case 'cancel': return onCancel?.(event.graphic?.geometry as Polygon)
+        case 'start': return onStart?.(geometry)
+        case 'active': return onActive?.(geometry)
+        case 'complete': return onComplete?.(geometry)
       }
     }).remove
   }, [onActive, onCancel, onComplete, onStart, t])
@@ -103,7 +106,7 @@ class CreateRectangleToolManager extends CreateTool {
     ])
   }
 
-  start = (options?: __esri.SketchViewModelCreateCreateOptions) => {
+  start = (options?: CreateOptions) => {
     if (this.state === 'ready') {
       this.manager!.polygonSymbol = this.createSymbol!;
       this.manager!.activeToolId = this.id;

@@ -15,22 +15,24 @@
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store";
 import SceneLayer from "@arcgis/core/layers/SceneLayer";
 import SceneLayerView from "@arcgis/core/views/layers/SceneLayerView";
+import type FeatureSet from "@arcgis/core/rest/support/FeatureSet.js";
 import { useDeferredValue } from "react";
-import { Polygon } from "@arcgis/core/geometry";
+import Polygon from "@arcgis/core/geometry/Polygon.js";
+import type Extent from "@arcgis/core/geometry/Extent.js";
 import { useSceneLayerViews } from "../useSceneLayers";
 import { useQuery } from '@tanstack/react-query';
 import { useAccessorValue } from "../../arcgis/reactive-hooks";
 import { useDebouncedValue } from "../useDebouncedValue";
 import { filterMeshGraphicsFromFeatureSet, type MeshGraphic } from "./download/export-query";
-import * as bufferOperator from "@arcgis/core/geometry/operators/bufferOperator.js";
-import * as unionOperator from "@arcgis/core/geometry/operators/unionOperator.js";
+import { bufferExecute } from "@arcgis/core/geometry/operators/bufferOperator.js";
+import { unionExecuteMany } from "@arcgis/core/geometry/operators/unionOperator.js";
 
 /**
  * This function performs a client side query on the layer views, to find features that intersect with the given boundary.
  * This is very fast and is useful to keep track of the selected features during interaction, but the query does not return any geometries.
  */
 async function queryFeaturesWithoutGeometries(sceneLayerViews: SceneLayerView[], boundary: Polygon, signal: AbortSignal) {
-  const featureMap = new Map<SceneLayerView, __esri.FeatureSet['features']>();
+  const featureMap = new Map<SceneLayerView, FeatureSet['features']>();
   const promises: Promise<unknown>[] = [];
 
   for (const layerView of sceneLayerViews!) {
@@ -51,13 +53,23 @@ async function queryFeaturesWithoutGeometries(sceneLayerViews: SceneLayerView[],
  * This function performs a server side query on the layers, to find features that intersect with the given boundary.
  * This is slower than the client side query, but it returns the geometries of the features and is useful for exporting.
  */
-async function queryFeaturesWithGeometries(sceneLayerViews: SceneLayerView[], boundary: Polygon, signal: AbortSignal) {
+async function queryFeaturesWithGeometries(sceneLayerViews: SceneLayerView[], extent: Extent, signal: AbortSignal, enforceLimit: boolean) {
+  const requests = sceneLayerViews.map(({ layer }) => {
+    const query = layer.createQuery();
+    query.geometry = extent;
+    query.spatialRelationship = "intersects";
+    return { layer, query };
+  });
+  if (enforceLimit) {
+    const counts = await Promise.all(requests.map(({ layer, query }) => layer.queryFeatureCount(query, { signal })));
+    if (counts.reduce((total, count) => total + count, 0) > MAX_FEATURES) {
+      throw new ExportFeatureLimitError();
+    }
+  }
+
   const featureMap = new Map<SceneLayer, MeshGraphic[]>();
   const promises: Promise<unknown>[] = [];
-  for (const { layer } of sceneLayerViews!) {
-    const query = layer.createQuery();
-    query.geometry = boundary.extent;
-    query.spatialRelationship = 'intersects'
+  for (const { layer, query } of requests) {
     const queryPromise = layer.queryFeatures(query, { signal })
       .then((featureSet) => {
         featureMap.set(layer, filterMeshGraphicsFromFeatureSet(featureSet))
@@ -107,12 +119,12 @@ async function queryFootprints(sceneLayerViews: SceneLayerView[], boundary: Poly
       .filter(Boolean)
       // the footprints are often quite sharp directly from the query,
       // so we add a little bit of a buffer to smooth them out
-      .map(f => bufferOperator.execute(f, 0.2, { unit: 'meters' })!)
+      .map(f => bufferExecute(f, 0.2, { unit: 'meters' })!)
     )
     footprints.push(...layerFootprints)
   }
 
-  const fpUnion = unionOperator.executeMany(footprints) as Polygon;
+  const fpUnion = unionExecuteMany(footprints) as Polygon;
 
   if (fpUnion != null) return fpUnion
   else throw new Error('failed to combine footprints');
@@ -153,6 +165,12 @@ export function useSelectedFeaturesCount() {
 
 export const MAX_FEATURES = 100;
 
+export class ExportFeatureLimitError extends Error {
+  constructor() {
+    super("Too many features in the square source area. Draw a smaller selection.");
+  }
+}
+
 export function useHasTooManyFeatures() {
   const { data: featureCount = 0 } = useSelectedFeaturesCount();
   const hasTooManyFeatures = featureCount > MAX_FEATURES
@@ -160,19 +178,19 @@ export function useHasTooManyFeatures() {
   return hasTooManyFeatures;
 }
 
-export function useSelectedFeaturesFromLayers(enabled = false) {
+export function useSelectedFeaturesFromLayers(enabled = false, sourceExtent?: Extent | null) {
   const sceneLayerViews = useSceneLayerViews();
   const store = useSelectionState();
   const selection = useAccessorValue(() => store.selection);
-  const deferredPolygon = useDeferredValue(selection)
+  const extent = sourceExtent === undefined ? selection?.extent : sourceExtent;
 
-  const query = useQuery({
-    queryKey: ['selected-features', 'layers', sceneLayerViews?.map(lv => lv.layer.id), deferredPolygon?.rings],
-    queryFn: async ({ signal }) => await queryFeaturesWithGeometries(sceneLayerViews ?? [], deferredPolygon!, signal),
-    enabled: enabled && deferredPolygon != null && sceneLayerViews != null,
-  })
-
-  return query;
+  return useQuery({
+    queryKey: ['selected-features', 'layers', sceneLayerViews?.map(({ layer }) => [layer.id, layer.url]), extent?.toJSON(), sourceExtent !== undefined],
+    queryFn: ({ signal }) => queryFeaturesWithGeometries(sceneLayerViews ?? [], extent!, signal, sourceExtent !== undefined),
+    enabled: enabled && extent != null && sceneLayerViews != null,
+    placeholderData: undefined,
+    retry: (failures, error) => !(error instanceof ExportFeatureLimitError) && failures < 2,
+  });
 }
 
 export function useSelectionFootprints(selection: Polygon | null) {

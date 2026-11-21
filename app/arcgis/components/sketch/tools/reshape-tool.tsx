@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 import { subclass } from "@arcgis/core/core/accessorSupport/decorators";
+import type { UpdateEvent } from "@arcgis/core/widgets/Sketch/types.js";
 import { UpdateTool } from "./update-tool";
 import { useSketch } from "../sketch";
 import { forwardRef, ReactNode, useEffect } from "react";
@@ -23,7 +24,7 @@ import { useAccessorValue } from "~/arcgis/reactive-hooks";
 
 interface ReshapeToolProps {
   onStart?: (graphics: Graphic[]) => void;
-  onActive?: (graphics: Graphic[], event: __esri.SketchViewModelUpdateEvent) => void;
+  onActive?: (graphics: Graphic[], event: UpdateEvent) => void;
   onComplete?: (graphics: Graphic[]) => void;
   onCancel?: (graphics: Graphic[]) => void;
   onDelete?: (graphics: Graphic[]) => void;
@@ -51,13 +52,13 @@ export const ReshapeTool = forwardRef<ReshapeToolManager, ReshapeToolProps>(func
   }, [sketch, manager]);
 
   useEffect(() => {
-    const handle = manager.on(["start", "active", "complete", "cancel", "delete"], (event) => {
+    const handle = manager.on(["start", "active", "complete", "cancel", "delete"], (event, type) => {
       if (event.type === 'delete') return onDelete?.(event.graphics);
+      if (type === 'cancel') return onCancel?.(event.graphics);
       switch (event.state) {
         case 'start': return onStart?.(event.graphics)
         case 'active': return onActive?.(event.graphics, event)
         case 'complete': return onComplete?.(event.graphics)
-        case 'cancel': return onCancel?.(event.graphics)
       }
     })
 

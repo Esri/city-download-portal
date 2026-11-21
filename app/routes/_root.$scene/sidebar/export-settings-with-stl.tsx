@@ -19,8 +19,6 @@ import '@esri/calcite-components/dist/components/calcite-icon';
 import '@esri/calcite-components/dist/components/calcite-input-text';
 import '@esri/calcite-components/dist/components/calcite-input-number';
 import '@esri/calcite-components/dist/components/calcite-label';
-import '@esri/calcite-components/dist/components/calcite-select';
-import '@esri/calcite-components/dist/components/calcite-option';
 import '@esri/calcite-components/dist/components/calcite-segmented-control';
 import '@esri/calcite-components/dist/components/calcite-segmented-control-item';
 import {
@@ -36,71 +34,111 @@ import {
 } from "@esri/calcite-components-react";
 import { useScene } from "../../../arcgis/components/maps/web-scene/scene-context";
 import { useAccessorValue } from "../../../arcgis/reactive-hooks";
-import { Dispatch, useDeferredValue, useEffect, useRef, useState } from "react";
-import { useDownloadExportMutation, useExportSizeQuery } from "../../../hooks/queries/download/export-query";
+import { Dispatch, useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useDownloadExportMutation, useExportSizeQuery, type ExportModelOptions } from "../../../hooks/queries/download/export-query";
 import { BlockAction, BlockState } from "./sidebar";
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store";
 import { useReferenceElementId } from "../selection/walk-through-context";
-import { useHasTooManyFeatures, useSelectedFeaturesFromLayers } from "~/hooks/queries/feature-query";
+import { ExportFeatureLimitError, MAX_FEATURES, useHasTooManyFeatures, useSelectedFeaturesFromLayers } from "~/hooks/queries/feature-query";
 import { usePreciseOriginElevationInfo } from "~/hooks/queries/elevation-query";
 import { useSTLConverter } from "~/hooks/useSTLConverter";
+import type { HexagonFootprint } from "~/hooks/queries/download/hexagon-footprint";
+import { useToast } from "~/components/toast";
+import FootprintControl from "./footprint-control";
+import { OSM_ATTRIBUTION, OSM_ATTRIBUTION_URL, OSM_SCENE_ID } from "~/data/osm-scene";
+import { queryOsmBuildings } from "~/hooks/queries/download/osm-building-query";
+import ModelViewerDialog from "~/components/model-viewer-dialog";
 
 type ExportFormat = 'glb' | 'stl';
+const noSceneFeatures: ExportModelOptions["features"] = new Map();
 
 interface ExportSettingsProps {
   state: BlockState['state'];
   dispatch: Dispatch<BlockAction[]>;
+  hexagon?: HexagonFootprint;
+  footprintError: Error | null;
+  footprintLoading: boolean;
 }
 
-export default function ExportSettings({ dispatch, state }: ExportSettingsProps) {
+export default function ExportSettings({ dispatch, state, hexagon, footprintError, footprintLoading }: ExportSettingsProps) {
   const scene = useScene();
+  const isOsm = scene.portalItem?.id === OSM_SCENE_ID;
   const { convertAndDownload } = useSTLConverter();
+  const toast = useToast();
 
   const title = useAccessorValue(() => {
-    const title = scene.portalItem?.title ?? "Untitled";
+    const title = isOsm ? "OpenStreetMap 3D" : scene.portalItem?.title ?? "Untitled";
     return title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, "_");
   });
   
   const [filename, setFilename] = useState("")
   const [exportFormat, setExportFormat] = useState<ExportFormat>('glb');
-  const [includeOriginMarker, setIncludeOriginMarker] = useState(true);
+  const [includeOriginMarker, setIncludeOriginMarker] = useState(!isOsm);
   const [extrudeBase, setExtrudeBase] = useState(true);
   const [extrusionDepth, setExtrusionDepth] = useState("50");
   const [isConvertingToSTL, setIsConvertingToSTL] = useState(false);
+  const [lastExport, setLastExport] = useState<File>();
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   const blockElementId = useReferenceElementId('downloading', 'left');
 
   const store = useSelectionState();
   const editingState = useAccessorValue(() => store.editingState);
   const selection = useAccessorValue(() => store.selection);
-  const deferredSelection = useDeferredValue(selection);
-
-  const { data: modelOrigin } = usePreciseOriginElevationInfo();
-
-  const featureQuery = useSelectedFeaturesFromLayers(editingState === 'idle');
-  const hasTooManyFeatures = useHasTooManyFeatures();
-
-  const canDownload = Boolean(
-    editingState === 'idle' && 
-    !hasTooManyFeatures && 
-    selection?.extent && 
-    featureQuery.data && 
-    modelOrigin
-  );
-
-  const sizeQuery = useExportSizeQuery({ 
-    enabled: canDownload,
-    includeOriginMarker,
-    extrudeBase,
-    extrusionDepth: extrusionDepth === '' ? 50 : (parseFloat(extrusionDepth) || 50)
+  const selectionExtent = selection?.extent;
+  const isHexagon = useAccessorValue(() => store.footprintShape) === "hexagon";
+  const isIdle = editingState === "idle";
+  const modelOriginQuery = usePreciseOriginElevationInfo();
+  const exportHexagon = isHexagon && hexagon?.selectionExtent.equals(selectionExtent) ? hexagon : undefined;
+  const currentExtent = isHexagon ? exportHexagon?.sourceExtent : selectionExtent;
+  const osmQuery = useQuery({
+    queryKey: ["osm-export-buildings", currentExtent?.toJSON()],
+    queryFn: ({ signal }) => queryOsmBuildings(currentExtent!, MAX_FEATURES, signal),
+    enabled: isOsm && isIdle && currentExtent != null,
+    placeholderData: undefined,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
-  
+
+  const rectangleOverLimit = useHasTooManyFeatures();
+  const featureQuery = useSelectedFeaturesFromLayers(
+    !isOsm && isIdle && (isHexagon ? exportHexagon != null : !rectangleOverLimit),
+    isHexagon ? exportHexagon?.sourceExtent ?? null : undefined,
+  );
+  const buildings = isOsm ? osmQuery.data : undefined;
+  const features = isOsm ? (buildings && noSceneFeatures) : featureQuery.data;
+  const modelOrigin = modelOriginQuery.isPlaceholderData ? undefined : modelOriginQuery.data;
+  const featureCount = features && Array.from(features.values()).reduce((count, layer) => count + layer.length, 0);
+  const hasTooManyFeatures = isOsm ? (buildings?.length ?? 0) > MAX_FEATURES
+    : isHexagon ? featureQuery.error instanceof ExportFeatureLimitError || (featureCount ?? 0) > MAX_FEATURES
+      : rectangleOverLimit;
+  const featuresError = isOsm ? osmQuery.error : featureQuery.error;
+  const exportParams: ExportModelOptions | undefined =
+    isIdle && currentExtent && features && modelOrigin && !hasTooManyFeatures && !featuresError ? {
+      scene,
+      extent: currentExtent,
+      features,
+      origin: modelOrigin,
+      includeOriginMarker,
+      extrudeBase,
+      extrusionDepth: Math.max(0, Number.parseFloat(extrusionDepth)) || 50,
+      hexagon: exportHexagon,
+      osmBuildings: buildings,
+    } : undefined;
+  const sizeQuery = useExportSizeQuery(exportParams);
+
   const fileSize = sizeQuery.data;
-  let fileSizeString = 'unknown';
-  if (deferredSelection == null) fileSizeString = 'no selection';
-  if (fileSize != null) fileSizeString = `${(fileSize * 1e-6).toFixed(2)} mb`;
-  if ((sizeQuery.isFetching && fileSize == null) || editingState !== 'idle') fileSizeString = 'loading';
-  if (hasTooManyFeatures) fileSizeString = 'unavailable - too many features';
+  let fileSizeString = "Unavailable";
+  if (selection == null) fileSizeString = "Select an area";
+  else if (hasTooManyFeatures) fileSizeString = "Too many features. Draw a smaller selection.";
+  else if (footprintError) fileSizeString = footprintError.message;
+  else if (featuresError) fileSizeString = isOsm ? featuresError.message : "Could not query city features. Try the selection again.";
+  else if (modelOriginQuery.error) fileSizeString = "Could not read the origin elevation. Move the model origin and retry.";
+  else if (exportParams && fileSize != null) fileSizeString = `${(fileSize * 1e-6).toFixed(2)} MB`;
+  else if (!isIdle || featureQuery.isFetching || osmQuery.isFetching || modelOriginQuery.isFetching || footprintLoading || sizeQuery.isFetching) {
+    fileSizeString = "Calculating…";
+  }
 
   const mutation = useDownloadExportMutation();
 
@@ -119,39 +157,41 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
   }, [title]);
 
   const wasClicked = useRef(false);
+  const exportInProgress = useRef(false);
 
   const handleExport = async () => {
-    if (!canDownload) return;
-
-    const exportParams = {
-      scene,
-      extent: selection!.extent!,
-      features: featureQuery.data!,
-      origin: modelOrigin!,
-      includeOriginMarker,
-      extrudeBase,
-      extrusionDepth: extrusionDepth === '' ? 50 : (parseFloat(extrusionDepth) || 50),
-      filename,
-    };
+    if (!exportParams || exportInProgress.current) return;
+    exportInProgress.current = true;
 
     try {
       const blob = await mutation.mutateAsync(exportParams);
       const name = filename || title || 'model';
       
+      let file: File;
       if (exportFormat === 'glb') {
-        downloadFile(name, blob);
-      } else if (exportFormat === 'stl') {
+        file = new File([blob], `${name}.glb`, { type: 'model/gltf-binary' });
+        downloadFile(file);
+      } else {
         setIsConvertingToSTL(true);
-        await convertAndDownload(blob, name, {
-          binary: true,
-          scale: 1,
-          mergeGeometries: true
-        });
-        setIsConvertingToSTL(false);
+        try {
+          file = await convertAndDownload(blob, name, {
+            binary: true,
+            scale: 1,
+            mergeGeometries: true,
+            binaryHeader: isOsm ? OSM_ATTRIBUTION : undefined,
+          });
+        } catch {
+          toast({ key: "stl-conversion-failed", title: "Export error", message: "Could not convert the model to STL. Try the export again.", severity: "danger" });
+          return;
+        }
       }
+      setLastExport(file);
+      setViewerOpen(true);
     } catch (error) {
-      setIsConvertingToSTL(false);
       console.error('Export failed:', error);
+    } finally {
+      setIsConvertingToSTL(false);
+      exportInProgress.current = false;
     }
   };
 
@@ -164,7 +204,7 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
     <CalciteBlock
       id={blockElementId}
       heading="Export settings"
-      collapsible
+      expandable
       expanded={state === 'open'}
       ref={ref}
       onClick={() => {
@@ -193,6 +233,18 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
       }}
     >
       <ul className="space-y-4">
+        {isOsm && (
+          <li className="text-xs">
+            Buildings use OpenStreetMap footprints and recorded or estimated heights.
+            {buildings?.length === 0 && <p className="mt-1">This area has no mapped buildings. The export will contain terrain.</p>}
+            <p className="mt-1">
+              Credit <a className="underline" href={OSM_ATTRIBUTION_URL} target="_blank" rel="noreferrer">OpenStreetMap contributors</a> when sharing a print.
+            </p>
+          </li>
+        )}
+        <li>
+          <FootprintControl disabled={isExporting} />
+        </li>
         <li>
           <CalciteLabel 
             scale="s"
@@ -258,6 +310,9 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
             />
             Include origin marker
           </CalciteLabel>
+          {isHexagon && includeOriginMarker && (
+            <p className="text-xs text-gray-600">The origin marker is included when it fits inside the hexagon.</p>
+          )}
         </li>
         <li>
           <CalciteLabel 
@@ -293,14 +348,14 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
         )}
         <li>
           <CalciteLabel scale="s">
-            <p className="font-medium">File size</p>
-            <p className={!canDownload ? "opacity-50" : ""}>{fileSizeString}</p>
-            {exportFormat === 'stl' && (
-              <p className="text-xs text-gray-600 mt-1">
-                STL files are typically 2-3x larger than GLB
-              </p>
-            )}
+            <p className="font-medium">{exportFormat === "stl" ? "GLB size estimate" : "File size"}</p>
+            <p aria-live="polite">{fileSizeString}</p>
           </CalciteLabel>
+          {isOsm && osmQuery.error && (
+            <CalciteButton appearance="outline" scale="s" onClick={() => void osmQuery.refetch()}>
+              Retry building data
+            </CalciteButton>
+          )}
         </li>
       </ul>
       
@@ -308,7 +363,7 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
         scale="l"
         width="full"
         iconStart={exportFormat === 'stl' ? 'print' : 'download'}
-        disabled={!canDownload || isExporting}
+        disabled={!exportParams || isExporting}
         loading={isExporting}
         onClick={(e) => {
           e.stopPropagation();
@@ -317,14 +372,27 @@ export default function ExportSettings({ dispatch, state }: ExportSettingsProps)
       >
         {exportButtonText}
       </CalciteButton>
+      <CalciteButton
+        className="mt-2"
+        appearance="outline"
+        width="full"
+        iconStart="cube"
+        onClick={(event) => {
+          event.stopPropagation();
+          setViewerOpen(true);
+        }}
+      >
+        {lastExport ? "View last export" : "Open model viewer"}
+      </CalciteButton>
+      <ModelViewerDialog open={viewerOpen} initialFile={lastExport} onClose={() => setViewerOpen(false)} />
     </CalciteBlock>
   );
 }
 
-function downloadFile(name: string, blob: Blob) {
+function downloadFile(file: File) {
   const link = document.createElement("a");
-  link.download = `${name}.glb`;
-  link.href = window.URL.createObjectURL(blob);
+  link.download = file.name;
+  link.href = window.URL.createObjectURL(file);
   link.click();
   window.URL.revokeObjectURL(link.href);
 }

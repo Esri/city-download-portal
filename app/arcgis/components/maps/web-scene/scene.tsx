@@ -18,6 +18,7 @@ import PortalItem from '@arcgis/core/portal/PortalItem';
 import { useSceneListModal } from "~/routes/_root/scene-list-modal/scene-list-modal-context";
 import { SceneContext } from "./scene-context";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
+import { OSM_SCENE_ID } from "~/data/osm-scene";
 
 interface WebSceneProps {
   portalItem: string | PortalItem;
@@ -31,7 +32,8 @@ function InternalScene({ portalItem, children }: PropsWithChildren<WebSceneProps
   }, [portalItem])
 
   const [scene, setScene] = useState(() => new CoreWebScene({
-    portalItem: item
+    portalItem: item,
+    ...(item.id === OSM_SCENE_ID ? { ground: "world-elevation" } : {}),
   }));
 
   const loaded = useAccessorValue(
@@ -46,7 +48,8 @@ function InternalScene({ portalItem, children }: PropsWithChildren<WebSceneProps
 
     if (!isSamePortalItem) {
       setScene(new CoreWebScene({
-        portalItem: item
+        portalItem: item,
+        ...(item.id === OSM_SCENE_ID ? { ground: "world-elevation" } : {}),
       }));
     }
   }, [item, portalItem]);

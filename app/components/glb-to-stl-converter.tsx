@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { GLBToSTLConverter } from '~/utils/glb-to-stl-converter';
 
 interface GLBToSTLConverterComponentProps {
@@ -18,7 +18,7 @@ export default function GLBToSTLConverterComponent({
   const [isConverting, setIsConverting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
-  const converter = new GLBToSTLConverter();
+  const converter = useMemo(() => new GLBToSTLConverter(), []);
 
   const handleConversion = useCallback(async (source: string | File, filename?: string) => {
     setIsConverting(true);

@@ -33,8 +33,9 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
+          node-version: "24"
           cache: "npm"
-      - name: Install and Build 🔧 # This example project is built using npm and outputs the result to the 'build' folder. Replace with the commands required to build your project, or remove this step entirely if your site is pre-built.
+      - name: Install and build
         run: |
           npm ci
           npm run build
@@ -43,7 +44,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
           path: "build/client"
       - name: Deploy to GitHub Pages
         id: deployment

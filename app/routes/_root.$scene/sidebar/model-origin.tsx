@@ -103,7 +103,7 @@ const ModelOrigin = memo(function ModelOrigin({
     <CalciteBlock
       id="modelOrigin"
       heading="Model origin"
-      collapsible
+      expandable
       expanded={state === 'open'}
       onClick={() => {
         wasClicked.current = true;

@@ -13,107 +13,54 @@
  * limitations under the License.
  */
 import { createMesh } from "./create-mesh";
-import { Extent, Point } from "@arcgis/core/geometry";
+import Extent from "@arcgis/core/geometry/Extent.js";
+import Point from "@arcgis/core/geometry/Point.js";
 import Mesh from "@arcgis/core/geometry/Mesh";
-import { useScene } from "~/arcgis/components/maps/web-scene/scene-context";
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store";
-import { MAX_FEATURES, useSelectedFeaturesFromLayers } from "../feature-query";
-import { useDeferredValue, useEffect } from "react";
-import { usePreciseOriginElevationInfo } from "../elevation-query";
-import { useIsMutating, useMutation, useQuery } from '@tanstack/react-query';
-import { useAccessorValue } from "~/arcgis/reactive-hooks";
+import { MAX_FEATURES } from "../feature-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ToastableError, useToast } from "~/components/toast";
 import WebScene from "@arcgis/core/WebScene";
 import type Graphic from "@arcgis/core/Graphic";
+import type SceneLayer from "@arcgis/core/layers/SceneLayer.js";
+import type FeatureSet from "@arcgis/core/rest/support/FeatureSet.js";
+import type { HexagonFootprint } from "./hexagon-footprint";
+import type { OsmBuilding } from "./osm-building-query";
+import { OSM_ATTRIBUTION } from "~/data/osm-scene";
 
-export function useExportSizeQuery({ 
-  enabled = false, 
-  includeOriginMarker = true,
-  extrudeBase = true,
-  extrusionDepth = 50
-}: { 
-  enabled?: boolean, 
-  includeOriginMarker?: boolean,
-  extrudeBase?: boolean,
-  extrusionDepth?: number
-}) {
-  const scene = useScene()
-  const store = useSelectionState();
-  const selection = useAccessorValue(() => store.selection);
-  const featureQuery = useSelectedFeaturesFromLayers(enabled);
-  const retry = featureQuery.refetch;
-  const featureQueryError = featureQuery.error;
-  const features = Array.from(featureQuery.data?.values() ?? []).flat();
-
-  const modelOrigin = usePreciseOriginElevationInfo().data
-
-  useEffect(() => {
-    if (enabled) {
-      retry()
-    }
-  }, [enabled, retry])
-
-  const isDownloading = useIsMutating({ mutationKey: ['export-download'] }) > 0
-
-  const isEnabled =
-    enabled &&
-    !isDownloading &&
-    scene != null &&
-    selection != null &&
-    featureQueryError == null &&
-    modelOrigin != null;
-
-  const queryKey = useDeferredValue([
-    'export',
-    'size',
-    features.map(f => f.getObjectId()),
-    selection?.extent?.toJSON(),
-    modelOrigin?.toJSON(),
-    includeOriginMarker,
-    extrudeBase,
-    extrusionDepth
-  ]);
-
-  const query = useQuery({
-    queryKey,
+export function useExportSizeQuery(args?: ExportModelOptions) {
+  const isDownloading = useIsMutating({ mutationKey: ['export-download'] }) > 0;
+  return useQuery({
+    queryKey: [
+      'export', 'size', args?.scene.portalItem?.id, args?.scene.portalItem?.portal?.url,
+      args?.extent.toJSON(), args?.origin.toJSON(), args?.hexagon?.outline.toJSON(),
+      args?.includeOriginMarker, args?.extrudeBase, args?.extrusionDepth,
+      args && Array.from(args.features, ([layer, features]) => [layer.url, layer.id, features.map(f => f.getObjectId())]),
+      args?.osmBuildings?.map(building => [building.id, building.height, building.footprint.rings]),
+    ],
     queryFn: async ({ signal }) => {
-      if (featureQueryError) {
-        throw featureQueryError;
-      }
-
       try {
-        const blob = await createModelBlob({
-          scene,
-          extent: selection!.extent!,
-          features: featureQuery.data!,
-          signal,
-          origin: modelOrigin!,
-          includeOriginMarker,
-          extrudeBase,
-          extrusionDepth,
-          filename: "unknown",
-        })
-
-        return blob.size;
-      } catch (error) {
-        if (error instanceof ToastableError) return null;
-        else throw error;
+        return (await createModelBlob({ ...args!, signal })).size;
+      } catch {
+        signal.throwIfAborted();
+        return null;
       }
     },
-    enabled: isEnabled,
-    placeholderData: null
-  })
-
-  return query;
+    enabled: args != null && !isDownloading,
+    placeholderData: undefined,
+    retry: false,
+  });
 }
 
 export function useDownloadExportMutation() {
   const store = useSelectionState();
   const toast = useToast();
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationKey: ['export-download'],
     mutationFn: createModelBlob,
+    onMutate: () => queryClient.cancelQueries({ queryKey: ['export', 'size'] }),
     onSuccess: () => {
       store.exportState = 'exported'
     },
@@ -132,17 +79,20 @@ export function useDownloadExportMutation() {
   })
 }
 
-async function createModelBlob(args: {
+export interface ExportModelOptions {
   includeOriginMarker?: boolean,
   extrudeBase?: boolean,
   extrusionDepth?: number,
-  filename: string,
   scene: WebScene,
   extent: Extent,
-  features: Map<__esri.SceneLayer, MeshGraphic[]>
+  features: Map<SceneLayer, MeshGraphic[]>
   origin: Point,
+  hexagon?: HexagonFootprint,
+  osmBuildings?: OsmBuilding[],
   signal?: AbortSignal
-}) {
+}
+
+async function createModelBlob(args: ExportModelOptions) {
   const {
     includeOriginMarker = false,
     extrudeBase = true,
@@ -150,13 +100,15 @@ async function createModelBlob(args: {
     extent,
     features,
     origin,
+    hexagon,
+    osmBuildings,
     signal
   } = args;
   
   // Convert extrusionDepth string to number, with fallback to 50
   const extrusionDepth = args.extrusionDepth ? Number(args.extrusionDepth) : 50;
 
-  const featureCount = Array.from(features.values()).flat().length;
+  const featureCount = osmBuildings?.length ?? Array.from(features.values()).flat().length;
   if (featureCount > MAX_FEATURES) {
     throw new ToastableError({
       key: 'too-many-features',
@@ -176,24 +128,42 @@ async function createModelBlob(args: {
       includeOriginMarker,
       extrudeBase,
       extrusionDepth,
+      hexagon,
+      osmBuildings,
       signal,
     });
   } catch (error) {
+    signal?.throwIfAborted();
     throw new ToastableError({
       key: 'mesh-creation-failed',
-      message: 'Failed to create mesh',
+      message: (hexagon || osmBuildings) && error instanceof Error ? error.message : 'Failed to create mesh. Try a smaller selection.',
       title: 'Export error',
       severity: 'danger',
       originalError: error
     })
   }
 
-  const file = await mesh!.toBinaryGLTF();
-  const blob = new Blob([file], { type: 'model/gltf-binary' });
-  return blob
+  const file = await mesh!.toBinaryGLTF({ origin: mesh!.origin ?? origin, signal });
+  return osmBuildings ? attributeOsmGlb(file) : new Blob([file], { type: 'model/gltf-binary' });
+}
+
+function attributeOsmGlb(file: ArrayBuffer) {
+  // GLB starts with a 12-byte header and one padded JSON chunk.
+  const originalJsonSize = new DataView(file).getUint32(12, true);
+  const originalJsonEnd = 20 + originalJsonSize;
+  const model = JSON.parse(new TextDecoder().decode(file.slice(20, originalJsonEnd)));
+  model.asset.copyright = [model.asset.copyright, OSM_ATTRIBUTION].filter(Boolean).join(" | ");
+  const json = new TextEncoder().encode(JSON.stringify(model));
+  const padded = new Uint8Array(Math.ceil(json.length / 4) * 4).fill(0x20);
+  padded.set(json);
+  const header = file.slice(0, 20);
+  const headerView = new DataView(header);
+  headerView.setUint32(8, 20 + padded.length + file.byteLength - originalJsonEnd, true);
+  headerView.setUint32(12, padded.length, true);
+  return new Blob([header, padded, file.slice(originalJsonEnd)], { type: "model/gltf-binary" });
 }
 
 export type MeshGraphic = Omit<Graphic, 'geometry'> & { geometry: Mesh }
-export function filterMeshGraphicsFromFeatureSet(featureSet: __esri.FeatureSet): MeshGraphic[] {
+export function filterMeshGraphicsFromFeatureSet(featureSet: FeatureSet): MeshGraphic[] {
   return featureSet.features.filter(feature => feature.geometry?.type === "mesh") as any as MeshGraphic[]
 }

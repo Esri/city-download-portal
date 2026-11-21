@@ -13,10 +13,8 @@
  * limitations under the License.
  */
 import Graphic from "~/arcgis/components/graphic";
-import {
-  SimpleFillSymbol
-} from "@arcgis/core/symbols";
-import { Polygon } from "@arcgis/core/geometry";
+import SimpleFillSymbol from "@arcgis/core/symbols/SimpleFillSymbol.js";
+import Polygon from "@arcgis/core/geometry/Polygon.js";
 import { SymbologyColors } from "~/symbology/symbology";
 import { useSelectionFootprints } from "../../../../../hooks/queries/feature-query";
 

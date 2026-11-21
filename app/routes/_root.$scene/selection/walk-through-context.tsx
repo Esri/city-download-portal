@@ -12,6 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import type { ReactiveWatchOptions } from "@arcgis/core/core/reactiveUtils.js";
 import {
   subclass,
   property,
@@ -92,7 +93,7 @@ export function useWalkthrough() {
   return useContext(WalkthroughContext);
 }
 
-export function useWalkthroughSelector<T>(get: (store: WalkthroughStore) => T, options?: __esri.ReactiveWatchOptions) {
+export function useWalkthroughSelector<T>(get: (store: WalkthroughStore) => T, options?: ReactiveWatchOptions) {
   const store = useWalkthrough()
 
   const currentGetter = useRef(get);

@@ -17,14 +17,22 @@ import MeshLocalVertexSpace from "@arcgis/core/geometry/support/MeshLocalVertexS
 import MeshGeoreferencedVertexSpace from "@arcgis/core/geometry/support/MeshGeoreferencedVertexSpace";
 import * as meshUtils from "@arcgis/core/geometry/support/meshUtils";
 import type Ground from '@arcgis/core/Ground';
-import { type Extent, Point, type SpatialReference } from "@arcgis/core/geometry";
+import Extent from "@arcgis/core/geometry/Extent.js";
+import Point from "@arcgis/core/geometry/Point.js";
+import type SpatialReference from "@arcgis/core/geometry/SpatialReference.js";
 import type WebScene from "@arcgis/core/WebScene";
-import * as projection from "@arcgis/core/geometry/projection";
+import type SceneLayer from "@arcgis/core/layers/SceneLayer.js";
+import MeshVertexAttributes from "@arcgis/core/geometry/support/MeshVertexAttributes.js";
+import { projectExecute, projectLoad } from "@arcgis/core/geometry/operators/projectOperator.js";
 import { createOriginMarker, ExportColors } from "~/symbology/symbology";
 import MeshMaterial from "@arcgis/core/geometry/support/MeshMaterial.js";
 import type { MeshGraphic } from "./export-query";
+import { clipMeshToFootprint, extrudeMeshSurface, getFootprintPerimeter } from "./clip-footprint-mesh";
+import { createRectangleFootprint, meshInFootprintSpace, projectPoint, signedDistance, vertexSpaceAt, type ExportFootprint, type HexagonFootprint } from "./hexagon-footprint";
+import { createOsmBuildingMeshes } from "./osm-building-mesh";
+import type { OsmBuilding } from "./osm-building-query";
 
-async function extractElevation(ground: Ground, extent: __esri.Extent, features?: Map<__esri.SceneLayer, MeshGraphic[]>, extrudeBase: boolean = true, extrusionDepth: number = 50) {
+async function extractElevation(ground: Ground, extent: Extent, features?: Map<SceneLayer, MeshGraphic[]>, extrudeBase: boolean = true, extrusionDepth: number = 50) {
   const mesh = await meshUtils.createFromElevation(ground, extent, {
     demResolution: "finest-contiguous"
   });
@@ -92,7 +100,7 @@ async function extrudeTerrainMesh(mesh: Mesh, bottomElevation: number): Promise<
   }
 
   // Find boundary edges for side walls
-  const boundaryEdges = findBoundaryEdges(originalFaces, vertexCount);
+  const boundaryEdges = findBoundaryEdges(originalFaces);
   
   // Calculate face counts
   const originalFaceCount = originalFaces.length;
@@ -133,9 +141,7 @@ async function extrudeTerrainMesh(mesh: Mesh, bottomElevation: number): Promise<
 
   // Create the extruded solid mesh
   const extrudedMesh = new Mesh({
-    vertexAttributes: {
-      position: newVertices
-    } as any,
+    vertexAttributes: new MeshVertexAttributes({ position: newVertices }),
     components: [{
       faces: newFaces
     }],
@@ -145,7 +151,7 @@ async function extrudeTerrainMesh(mesh: Mesh, bottomElevation: number): Promise<
   return extrudedMesh;
 }
 
-function findBoundaryEdges(faces: Uint32Array, vertexCount: number): [number, number][] {
+function findBoundaryEdges(faces: Uint32Array): [number, number][] {
   // Create edge map to find boundary edges (edges that appear only once)
   const edgeMap = new Map<string, number>();
   
@@ -187,7 +193,7 @@ async function createLayerMeshes({
   vertexSpace,
   signal,
 }: {
-  layer: __esri.SceneLayer,
+  layer: SceneLayer,
   features: MeshGraphic[],
   vertexSpace: MeshLocalVertexSpace | MeshGeoreferencedVertexSpace,
   signal?: AbortSignal
@@ -226,7 +232,7 @@ async function mergeSliceMeshes(
     signal,
   }: {
     elevation: Mesh,
-    features: Map<__esri.SceneLayer, MeshGraphic[]>
+    features: Map<SceneLayer, MeshGraphic[]>
     origin: Point,
     includeOriginMarker?: boolean,
     spatialReference: SpatialReference;
@@ -295,32 +301,39 @@ export async function createMesh({
   includeOriginMarker = true,
   extrudeBase = true,
   extrusionDepth = 50,
+  hexagon,
+  osmBuildings,
   signal,
 }: {
   scene: WebScene,
   extent: Extent,
-  features: Map<__esri.SceneLayer, MeshGraphic[]>
+  features: Map<SceneLayer, MeshGraphic[]>
   signal?: AbortSignal,
   origin: Point,
   includeOriginMarker?: boolean,
   extrudeBase?: boolean,
   extrusionDepth?: number
+  hexagon?: HexagonFootprint,
+  osmBuildings?: OsmBuilding[],
 }) {
+  if (hexagon || osmBuildings) {
+    const footprint = hexagon ?? await createRectangleFootprint(extent, signal);
+    return createMaskedMesh({ scene, features, origin, includeOriginMarker, extrudeBase, extrusionDepth, footprint, osmBuildings, signal });
+  }
+
   const ground = scene.ground;
   const originSpatialReference = origin.spatialReference;
   const sr = features.keys().next().value?.spatialReference ?? originSpatialReference;
 
   let projectedExtent = extent;
-  if (extent.spatialReference.wkid !== sr.wkid) {
-    await projection.load();
-    projectedExtent = projection.project(extent, sr) as Extent;
+  if (!extent.spatialReference.equals(sr)) {
+    await projectLoad();
+    const projected = projectExecute(extent, sr);
+    if (!(projected instanceof Extent)) throw new Error("Could not project the export extent.");
+    projectedExtent = projected;
   }
 
-  let projectedOrigin = origin;
-  if (origin.spatialReference.wkid !== sr.wkid) {
-    await projection.load();
-    projectedOrigin = projection.project(origin, sr) as Point;
-  }
+  const projectedOrigin = await projectPoint(origin, sr);
 
   const elevation = await extractElevation(ground, projectedExtent, features, extrudeBase, extrusionDepth);
 
@@ -336,4 +349,76 @@ export async function createMesh({
   await slice!.load();
 
   return slice;
+}
+
+async function createMaskedMesh({
+  scene, features, origin, includeOriginMarker, extrudeBase, extrusionDepth, footprint, osmBuildings, signal,
+}: {
+  scene: WebScene;
+  features: Map<SceneLayer, MeshGraphic[]>;
+  origin: Point;
+  includeOriginMarker: boolean;
+  extrudeBase: boolean;
+  extrusionDepth: number;
+  footprint: ExportFootprint;
+  osmBuildings?: OsmBuilding[];
+  signal?: AbortSignal;
+}) {
+  const sampled = await meshUtils.createFromElevation(scene.ground, footprint.sourceExtent, {
+    demResolution: "finest-contiguous",
+    signal,
+  });
+  const square = await meshInFootprintSpace(sampled, footprint, signal);
+  let terrain = clipMeshToFootprint(square, footprint, true, signal);
+  if (!terrain) throw new Error("No terrain was sampled inside the export footprint. Try a larger selection.");
+  const perimeter = getFootprintPerimeter(terrain, footprint);
+  for (const component of terrain.components ?? []) {
+    component.name = "<terrain>";
+    component.material = new MeshMaterial({ color: ExportColors.terrain() });
+  }
+
+  const city = osmBuildings ? await createOsmBuildingMeshes(osmBuildings, footprint, square, signal)
+    : (await Promise.all(Array.from(features, ([layer, graphics]) => graphics.map(async feature => {
+    const mesh = feature.geometry;
+    await mesh.load({ signal });
+    const local = await meshInFootprintSpace(mesh, footprint, signal);
+    const clipped = clipMeshToFootprint(local, footprint, false, signal);
+    for (const component of clipped?.components ?? []) {
+      component.name = `${layer.title}-${feature.getObjectId()}`;
+      component.material ??= new MeshMaterial({ color: ExportColors.feature() });
+    }
+    return clipped;
+  })).flat())).filter((mesh): mesh is Mesh => mesh !== null);
+
+  let minElevation = Infinity;
+  let maxElevation = -Infinity;
+  for (const { vertexAttributes: { position } } of [terrain, ...city]) {
+    for (let index = 2; index < position.length; index += 3) {
+      minElevation = Math.min(minElevation, position[index]);
+      maxElevation = Math.max(maxElevation, position[index]);
+    }
+  }
+
+  if (extrudeBase) {
+    const sr = terrain.spatialReference;
+    const metersPerUnit = terrain.vertexSpace.type === "local" ? 1 : sr.metersPerUnit;
+    terrain = extrudeMeshSurface(terrain, perimeter, minElevation - extrusionDepth / metersPerUnit, "terrain-base");
+  }
+
+  const meshes = [terrain, ...city];
+  const exportOrigin = await projectPoint(origin, footprint.center.spatialReference);
+  if (includeOriginMarker && maxElevation > minElevation) {
+    const marker = await createOriginMarker(exportOrigin, maxElevation - minElevation);
+    const local = await meshInFootprintSpace(marker, footprint, signal);
+    const position = local.vertexAttributes.position;
+    let fits = true;
+    for (let i = 0; i < position.length && fits; i += 3) {
+      fits = footprint.planes.every(plane => signedDistance(plane, position[i], position[i + 1]) >= -footprint.tolerance);
+    }
+    if (fits) meshes.push(local);
+  }
+
+  const merged = meshUtils.merge(meshes);
+  if (!merged) throw new Error("The terrain and building meshes could not be combined for export.");
+  return meshUtils.convertVertexSpace(merged, vertexSpaceAt(exportOrigin), { signal });
 }

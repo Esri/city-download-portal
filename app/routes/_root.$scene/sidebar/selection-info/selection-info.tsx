@@ -39,13 +39,19 @@ import { UpdateSelectionTool } from "../../selection/selection-tools/update-sele
 import { useQuery } from "@tanstack/react-query";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import type { BlockAction, BlockState } from '../sidebar';
+import type Polygon from "@arcgis/core/geometry/Polygon";
+import FootprintControl from "../footprint-control";
+import { useScene } from "~/arcgis/components/maps/web-scene/scene-context";
+import { OSM_SCENE_ID } from "~/data/osm-scene";
 
 interface MeasurementsProps {
   state: BlockState['state'];
   dispatch: Dispatch<BlockAction[]>;
+  hexagon?: Polygon;
 }
-export default function SelectionInfo({ state, dispatch }: MeasurementsProps) {
+export default function SelectionInfo({ state, dispatch, hexagon }: MeasurementsProps) {
   const store = useSelectionState();
+  const isOsm = useScene().portalItem?.id === OSM_SCENE_ID;
   const selection = useAccessorValue(() => store.selection);
 
   const deferredSelection = useDeferredValue(selection);
@@ -59,12 +65,17 @@ export default function SelectionInfo({ state, dispatch }: MeasurementsProps) {
   const areaQuery = useQuery({
     queryKey: ['selection-info', 'area', deferredSelection?.toJSON()],
     queryFn: async () => {
-      const areaOperator = deferredSelection!.spatialReference.isWGS84 || deferredSelection!.spatialReference.isWebMercator
-        ? await import("@arcgis/core/geometry/operators/geodeticAreaOperator.js")
-        : await import("@arcgis/core/geometry/operators/areaOperator.js");
+      const selection = deferredSelection!;
+      const { spatialReference } = selection;
 
-      const area = await areaOperator.execute(deferredSelection!);
+      if (spatialReference.isWGS84 || spatialReference.isWebMercator) {
+        const { geodeticAreaExecute, geodeticAreaLoad } = await import("@arcgis/core/geometry/operators/geodeticAreaOperator.js");
+        await geodeticAreaLoad();
+        return Math.abs(geodeticAreaExecute(selection));
+      }
 
+      const { areaExecute } = await import("@arcgis/core/geometry/operators/areaOperator.js");
+      const area = areaExecute(selection);
       return Math.abs(area);
     },
     enabled: deferredSelection != null
@@ -103,7 +114,7 @@ export default function SelectionInfo({ state, dispatch }: MeasurementsProps) {
       <CalciteBlock
         ref={ref}
         heading="Selection"
-        collapsible
+        expandable
         expanded={state === 'open'}
         onClick={() => {
           wasClicked.current = true
@@ -132,7 +143,8 @@ export default function SelectionInfo({ state, dispatch }: MeasurementsProps) {
       >
         <CalciteIcon scale="s" slot="icon" icon="cursor-marquee"></CalciteIcon>
         <div className="flex flex-col gap-2">
-          <Minimap />
+          <FootprintControl />
+          <Minimap hexagon={hexagon} />
           <ul className="h-full grid grid-cols-2 grid-rows-2 gap-2">
             <li>
               <MeasurementValue icon="arrow-double-vertical" label="North to south length" value={northToSouthLength} />
@@ -143,9 +155,9 @@ export default function SelectionInfo({ state, dispatch }: MeasurementsProps) {
             <li>
               <MeasurementValue icon="grid-diamond" label="Area" value={area} />
             </li>
-            <li>
+            {!isOsm && <li>
               <MeasurementValue icon="urban-model" label="Selected features" value={featureCount} />
-            </li>
+            </li>}
           </ul>
           <UpdateSelectionTool invalid={hasTooManyFeatures} />
           <CalciteNotice kind="warning" open={hasTooManyFeatures}>
@@ -212,7 +224,7 @@ function Dimensions() {
 }
 
 interface MeasurementValueProps {
-  icon: string;
+  icon: HTMLCalciteIconElement["icon"];
   label: string;
   value?: string | number | null;
 }

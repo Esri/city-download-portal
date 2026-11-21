@@ -13,13 +13,15 @@
  * limitations under the License.
  */
 import Color from "@arcgis/core/Color";
-import { Point } from "@arcgis/core/geometry";
-import Mesh from "@arcgis/core/geometry/Mesh";
+import Point from "@arcgis/core/geometry/Point.js";
 import * as meshUtils from "@arcgis/core/geometry/support/meshUtils";
-import { PointSymbol3D, ObjectSymbol3DLayer } from "@arcgis/core/symbols";
+import PointSymbol3D from "@arcgis/core/symbols/PointSymbol3D.js";
+import ObjectSymbol3DLayer from "@arcgis/core/symbols/ObjectSymbol3DLayer.js";
 import Diamond from './diamond.gltf?url';
 import MeshMaterial from "@arcgis/core/geometry/support/MeshMaterial";
 import MeshMaterialMetallicRoughness from "@arcgis/core/geometry/support/MeshMaterialMetallicRoughness.js";
+
+export const exportFootprintColor = "#7029bd";
 
 export const SymbologyColors = {
   selection(alpha = 1) {
@@ -83,11 +85,11 @@ export async function createOriginMarker(origin: Point, meshHeight: number) {
   });
   const markerHeight = meshHeight;
   new MeshMaterialMetallicRoughness
-  const box = (await Mesh.createFromGLTF(origin, Diamond))
+  const box = (await meshUtils.createFromGLTF(origin, Diamond))
     .scale(diamondSize)
     .offset(0, 0, markerHeight);
 
-  const cylender = Mesh.createCylinder(origin);
+  const cylender = meshUtils.createCylinder(origin);
 
   const transform = cylender.transform?.clone();
   if (transform) transform.scale = [cylinderSize, cylinderSize, markerHeight];

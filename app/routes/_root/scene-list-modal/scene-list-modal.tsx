@@ -25,6 +25,7 @@ import { clientLoader as RootClientLoader } from "../route";
 import { useSceneListModal } from "./scene-list-modal-context";
 import webSceneLocal from './web-scene-local.svg';
 import webSceneGlobal from './web-scene-global.svg';
+import { OSM_SCENE_ID, OSM_SCENE_TITLE } from "~/data/osm-scene";
 
 interface SceneCardProps {
   title: string;
@@ -119,7 +120,7 @@ export default function SceneListModal() {
 
   return (
     <CalciteDialog
-      slot="modals"
+      slot="dialogs"
       open={isRoot || open}
       modal
       closeDisabled={isRoot}
@@ -128,16 +129,19 @@ export default function SceneListModal() {
       onCalciteDialogOpen={() => setOpen(true)}
       onCalciteDialogClose={() => setOpen(false)}
     >
-      <p slot="header-content">City download portal - Choose a city</p>
-      <p slot="content-top">Choose a city to download your 3D model from.</p>
-      <div className="grid grid-cols-3 grid-flow-dense gap-4">
+      <p slot="header-content">City download portal</p>
+      <p slot="content-top">Choose a city scene or browse the world with OpenStreetMap 3D.</p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {scenes?.map((scene, index) => (
           <Link
             key={scene.id}
+            aria-label={scene.id === OSM_SCENE_ID ? OSM_SCENE_TITLE : scene.title ?? "Untitled scene"}
             to={`/${scene.id}`}>
             <SceneCard
-              title={scene.title ?? "untitled"}
-              description={scene.description ?? ""}
+              title={scene.id === OSM_SCENE_ID ? OSM_SCENE_TITLE : scene.title ?? "untitled"}
+              description={scene.id === OSM_SCENE_ID
+                ? "Browse the globe and export terrain with buildings modeled from OpenStreetMap footprints."
+                : scene.description ?? ""}
               thumbnail={scene.thumbnailUrl ?? ""}
               viewingMode={(maps![index] as any).viewingMode}
               selected={scene.id === currentScene}

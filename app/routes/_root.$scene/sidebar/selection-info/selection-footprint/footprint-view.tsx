@@ -17,20 +17,20 @@ import '@esri/calcite-components/dist/components/calcite-scrim';
 import { CalciteScrim } from "@esri/calcite-components-react";
 import GraphicsLayer from "~/arcgis/components/graphics-layer";
 import Graphic from "~/arcgis/components/graphic";
-import {
-  SimpleMarkerSymbol
-} from "@arcgis/core/symbols";
+import SimpleFillSymbol from "@arcgis/core/symbols/SimpleFillSymbol.js";
+import SimpleMarkerSymbol from "@arcgis/core/symbols/SimpleMarkerSymbol.js";
 import { useSceneView } from "~/arcgis/components/views/scene-view/scene-view-context";
 import { useAccessorValue } from "~/arcgis/reactive-hooks";
 import { useSelectionState } from "~/routes/_root.$scene/selection/selection-store";
 import CoreMapView from "@arcgis/core/views/MapView";
-import { Point, Polygon } from "@arcgis/core/geometry";
-import { SymbologyColors } from "~/symbology/symbology";
+import Point from "@arcgis/core/geometry/Point.js";
+import Polygon from "@arcgis/core/geometry/Polygon.js";
+import { exportFootprintColor, SymbologyColors } from "~/symbology/symbology";
 import { useMutation } from "@tanstack/react-query";
 import { FootprintGraphic } from "./footprint-graphic";
 import { SelectionPreviewGraphic } from "./selection-preview-graphic";
-import * as areaOperator from "@arcgis/core/geometry/operators/areaOperator.js";
-import * as bufferOperator from "@arcgis/core/geometry/operators/bufferOperator.js";
+import { areaExecute } from "@arcgis/core/geometry/operators/areaOperator.js";
+import { bufferExecute } from "@arcgis/core/geometry/operators/bufferOperator.js";
 
 const Map = lazy(() => import('~/arcgis/components/maps/map/map'));
 const MapView = lazy(() => import('~/arcgis/components/views/map-view/map-view'));
@@ -40,6 +40,11 @@ const OriginSymbol = new SimpleMarkerSymbol({
   style: 'diamond',
   outline: null!
 })
+
+const HexagonSymbol = new SimpleFillSymbol({
+  style: "none",
+  outline: { color: exportFootprintColor, width: 2.5 },
+});
 
 function useGoToSelection() {
   const mutation = useMutation({
@@ -68,16 +73,16 @@ function useGoToSelection() {
         ]
       ]
 
-      const area = Math.abs(areaOperator.execute(polygon));
-      const buffered = bufferOperator.execute(polygon!, Math.sqrt(area) * 0.5);
-      return view.goTo({ target: buffered }, { signal, animate: true });
+      const area = Math.abs(areaExecute(polygon));
+      const buffered = bufferExecute(polygon!, Math.sqrt(area) * 0.5);
+      return view.goTo({ target: buffered ?? polygon }, { signal, animate: true });
     }
   });
 
   return mutation;
 }
 
-function InternalMinimap() {
+function InternalMinimap({ hexagon }: { hexagon?: Polygon }) {
   const sceneView = useSceneView();
 
   const store = useSelectionState();
@@ -117,33 +122,42 @@ function InternalMinimap() {
   }, [deferredOrigin, deferredSelection, goToSelection])
 
   return (
-    <div className={"w-full aspect-[1.5/1] pointer-events-none "}>
-      {spatialReference != null ? (
-        <Suspense fallback={<CalciteScrim loading />}>
-          <Map>
-            <GraphicsLayer>
-              {deferredOrigin != null ? <Graphic
-                index={1}
-                geometry={deferredOrigin}
-                symbol={OriginSymbol}
-              />
-                : null}
-              {
-                deferredOrigin != null && deferredSelection != null
-                  ? <SelectionPreviewGraphic origin={deferredOrigin} selection={deferredSelection} />
-                  : null
-              }
-              {
-                deferredOrigin != null && deferredSelection != null
-                  ? <FootprintGraphic selection={deferredSelection} />
-                  : null
-              }
-            </GraphicsLayer>
-            <MapView ref={mapRef} spatialReference={`${spatialReference}`} />
-          </Map>
-        </Suspense>
-      ) : null}
-    </div>
+    <figure>
+      <div className="w-full aspect-[1.5/1] pointer-events-none">
+        {spatialReference != null ? (
+          <Suspense fallback={<CalciteScrim loading />}>
+            <Map>
+              <GraphicsLayer>
+                {deferredOrigin != null ? <Graphic
+                  index={1}
+                  geometry={deferredOrigin}
+                  symbol={OriginSymbol}
+                />
+                  : null}
+                {deferredOrigin != null && deferredSelection != null && (
+                  <>
+                    <SelectionPreviewGraphic origin={deferredOrigin} selection={deferredSelection} />
+                    <FootprintGraphic selection={deferredSelection} />
+                  </>
+                )}
+              </GraphicsLayer>
+              {hexagon && (
+                <GraphicsLayer title="Hexagon export boundary">
+                  <Graphic geometry={hexagon} symbol={HexagonSymbol} />
+                </GraphicsLayer>
+              )}
+              <MapView ref={mapRef} spatialReference={`${spatialReference}`} />
+            </Map>
+          </Suspense>
+        ) : null}
+      </div>
+      {hexagon && (
+        <figcaption className="mt-1 flex items-center gap-2 text-xs">
+          <span className="inline-block h-0.5 w-4" style={{ backgroundColor: exportFootprintColor }} aria-hidden="true" />
+          Hexagon export boundary
+        </figcaption>
+      )}
+    </figure>
   )
 }
 

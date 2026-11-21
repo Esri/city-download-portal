@@ -17,10 +17,12 @@ import {
   property,
 } from "@arcgis/core/core/accessorSupport/decorators";
 import Accessor from "@arcgis/core/core/Accessor";
-import { Point, Polygon } from "@arcgis/core/geometry";
+import Point from "@arcgis/core/geometry/Point.js";
+import Polygon from "@arcgis/core/geometry/Polygon.js";
 import { PropsWithChildren, createContext, useContext } from "react";
 import useInstance from "~/hooks/useInstance";
 import Graphic from "@arcgis/core/Graphic";
+import type { FootprintShape } from "~/hooks/queries/download/hexagon-footprint";
 
 @subclass()
 class SelectionStore extends Accessor {
@@ -69,6 +71,9 @@ class SelectionStore extends Accessor {
 
   @property()
   selection: Polygon | null = null;
+
+  @property()
+  footprintShape: FootprintShape = "rectangle";
 
   @property()
   modelOrigin: Point | null = null;
